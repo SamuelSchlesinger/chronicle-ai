@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Handoff Protocol
+
+**At the end of each development session**, update `UnreadMessage.md` with a message for the next developer agent. Include:
+- What you worked on
+- Current state of the code
+- Any known issues or incomplete work
+- Suggested next steps
+
+**At the start of each session**, read `UnreadMessage.md` to understand the current state, then clear it after reading.
+
 ## Build Commands
 
 ```bash
