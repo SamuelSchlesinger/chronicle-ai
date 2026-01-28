@@ -2,40 +2,81 @@
 
 ## What was done
 
-Documentation cleanup and consolidation:
+Fixed multiple TUI issues for better responsiveness and readability:
 
-1. **Created README.md** - Comprehensive project README with:
-   - Overview of all 6 crates in the workspace
-   - Quick start guide for D&D game and framework usage
-   - Architecture diagram
-   - Project structure
+1. **Scroll synchronization** - Scroll was broken because `scroll_to_bottom()` set a huge value that scroll_up couldn't properly decrement. Added `estimate_max_scroll()` to cap scroll position.
 
-2. **Updated CLAUDE.md** - Now accurately reflects:
-   - The 6-crate workspace structure (was previously describing 2 crates)
-   - Correct build commands (`cargo run -p dnd` instead of `cargo run --bin dnd_game`)
-   - Current module organization for dnd-core and dnd crates
-   - Both derive macro and trait-based tool patterns
+2. **HP gauge readability** - Changed from green foreground (hard to read) to green background with contrasting black/white text.
 
-3. **Consolidated design docs**:
-   - Renamed `REDESIGN.md` to `ARCHITECTURE.md` (canonical architecture doc)
-   - Moved `FRAMEWORK_DESIGN.md` to `docs/archive/` with historical notice
-   - Updated cross-references between docs
+3. **Dice roll text wrapping** - Added `Wrap` to prevent skill check purpose text from being cut off.
 
-4. **Fixed rustdocs**:
-   - Updated lib/src/lib.rs example to use actual types (was referencing non-existent AgentBuilder, etc.)
-   - Added missing field docs in llm/mod.rs (StreamEvent, ContentDelta, ToolChoice)
-   - Added missing field docs in memory.rs and safety.rs
-   - Added `#![allow(missing_docs)]` to error.rs (error messages are self-documenting)
-   - Build now completes with no warnings
+4. **Player action visibility** - Player actions no longer auto-scroll, so users can see their input. Added explicit `stdout().flush()` before async wait.
 
 ## Current state
 
-- All documentation is consistent with the actual implementation
-- Workspace builds cleanly with no warnings
-- Git has unstaged changes for the documentation updates
+- All TUI fixes committed
+- Tests passing, clippy clean
+- Ready for async UI refactor
 
-## Suggested next steps
+## Next steps: Async UI Architecture
 
-- Review and commit the documentation changes
-- Consider adding crate-level README files for individual crates if needed
-- The research reports in `agents/research/` could be moved to `docs/archive/research/` for consistency
+The current main loop blocks during AI processing, freezing the UI. Here's the plan to make it responsive:
+
+### Phase 1: Background AI Task
+
+**Files to modify:**
+- `dnd/src/app.rs` - Add task handle storage
+- `dnd/src/main.rs` - Spawn AI task instead of awaiting inline
+
+**Changes:**
+```rust
+// In App struct:
+ai_task: Option<tokio::task::JoinHandle<Result<DmResponse, SessionError>>>,
+
+// In main loop, instead of:
+app.process_player_input_without_echo(&input).await;
+
+// Do:
+let session_clone = app.session.clone(); // Need to make session Clone or use Arc
+let input_clone = input.clone();
+app.ai_task = Some(tokio::spawn(async move {
+    session_clone.player_action(&input_clone).await
+}));
+
+// Then each loop iteration, check:
+if let Some(task) = &mut app.ai_task {
+    if task.is_finished() {
+        let result = app.ai_task.take().unwrap().await.unwrap();
+        // Process result...
+    }
+}
+```
+
+### Phase 2: Streaming Text Display
+
+**Files to modify:**
+- `dnd-core/src/session.rs` - Add streaming method
+- `claude/src/lib.rs` - Already has streaming support
+- `dnd/src/app.rs` - Handle streaming chunks
+
+**The `streaming_text` field already exists** in App and NarrativeWidget renders it with a cursor indicator. Just need to feed it data.
+
+### Phase 3: Cancellation Support
+
+- Allow Ctrl+C or Escape to cancel pending AI request
+- Use `tokio::select!` or `AbortHandle`
+
+### Considerations
+
+1. **Session cloning** - `GameSession` contains `DungeonMaster` which has non-Clone types. Options:
+   - Wrap in `Arc<Mutex<>>`
+   - Extract just the needed data for AI call
+   - Use channels to communicate with a dedicated AI task
+
+2. **State consistency** - Ensure game state isn't modified while AI is processing
+
+3. **Error handling** - Handle task panics gracefully
+
+## Known issues
+
+- Many other files have uncommitted changes from previous sessions (run `git status` to see)
