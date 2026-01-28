@@ -6,7 +6,10 @@ use ratatui::{
     style::{Color, Modifier, Style},
     symbols::scrollbar,
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget, Widget, Wrap},
+    widgets::{
+        Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, StatefulWidget,
+        Widget, Wrap,
+    },
 };
 
 use dnd_core::world::NarrativeType;
@@ -124,9 +127,22 @@ impl Widget for NarrativeWidget<'_> {
         }
 
         // Calculate scroll position
+        // Estimate wrapped line count: assume average line wraps to fill width
+        // This is an approximation since we don't know exact wrapped height
         let visible_height = inner.height as usize;
-        let total_lines = lines.len();
-        let max_scroll = total_lines.saturating_sub(visible_height);
+        let inner_width = inner.width.saturating_sub(1) as usize; // -1 for scrollbar
+        let estimated_lines: usize = lines
+            .iter()
+            .map(|line| {
+                let line_len = line.spans.iter().map(|s| s.content.len()).sum::<usize>();
+                if inner_width == 0 {
+                    1
+                } else {
+                    (line_len / inner_width.max(1)).max(1)
+                }
+            })
+            .sum();
+        let max_scroll = estimated_lines.saturating_sub(visible_height);
         let scroll = self.scroll.min(max_scroll);
 
         let paragraph = Paragraph::new(lines.clone())
@@ -136,7 +152,7 @@ impl Widget for NarrativeWidget<'_> {
         paragraph.render(inner, buf);
 
         // Render scrollbar if content exceeds visible area
-        if total_lines > visible_height {
+        if estimated_lines > visible_height {
             // Create scrollbar area (inside the block, on the right)
             let scrollbar_area = Rect {
                 x: inner.x + inner.width.saturating_sub(1),
@@ -152,8 +168,7 @@ impl Widget for NarrativeWidget<'_> {
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓"));
 
-            let mut scrollbar_state = ScrollbarState::new(max_scroll)
-                .position(scroll);
+            let mut scrollbar_state = ScrollbarState::new(max_scroll).position(scroll);
 
             scrollbar.render(scrollbar_area, buf, &mut scrollbar_state);
 
@@ -161,7 +176,9 @@ impl Widget for NarrativeWidget<'_> {
             if scroll > 0 {
                 let hint = format!(" ↑{scroll} ");
                 let hint_x = inner.x;
-                let hint_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                let hint_style = Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM);
                 for (i, ch) in hint.chars().enumerate() {
                     let x = hint_x + (i as u16);
                     if x < inner.x + inner.width.saturating_sub(2) {
@@ -176,7 +193,9 @@ impl Widget for NarrativeWidget<'_> {
                 let hint = format!(" ↓{remaining} more ");
                 let hint_x = inner.x;
                 let hint_y = inner.y + inner.height.saturating_sub(1);
-                let hint_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                let hint_style = Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::DIM);
                 for (i, ch) in hint.chars().enumerate() {
                     let x = hint_x + (i as u16);
                     if x < inner.x + inner.width.saturating_sub(2) {

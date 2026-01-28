@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
 
 use dnd_core::dice::RollResult;
@@ -108,47 +108,17 @@ impl Widget for DiceRollWidget<'_> {
 
                     // Show the result
                     if result.natural_20 {
-                        lines.push(Line::from(Span::styled(
-                            "  .--===--.",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            " / NAT 20! \\",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            "|  CRITICAL |",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            " \\   HIT!  /",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            "  '---==---'",
-                            style,
-                        )));
+                        lines.push(Line::from(Span::styled("  .--===--.", style)));
+                        lines.push(Line::from(Span::styled(" / NAT 20! \\", style)));
+                        lines.push(Line::from(Span::styled("|  CRITICAL |", style)));
+                        lines.push(Line::from(Span::styled(" \\   HIT!  /", style)));
+                        lines.push(Line::from(Span::styled("  '---==---'", style)));
                     } else if result.natural_1 {
-                        lines.push(Line::from(Span::styled(
-                            "  .-------.",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            " / NAT  1  \\",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            "|  FUMBLE!  |",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            " \\        /",
-                            style,
-                        )));
-                        lines.push(Line::from(Span::styled(
-                            "  '-------'",
-                            style,
-                        )));
+                        lines.push(Line::from(Span::styled("  .-------.", style)));
+                        lines.push(Line::from(Span::styled(" / NAT  1  \\", style)));
+                        lines.push(Line::from(Span::styled("|  FUMBLE!  |", style)));
+                        lines.push(Line::from(Span::styled(" \\        /", style)));
+                        lines.push(Line::from(Span::styled("  '-------'", style)));
                     } else {
                         // Normal result
                         lines.push(Line::from("  ╭─────╮"));
@@ -170,9 +140,15 @@ impl Widget for DiceRollWidget<'_> {
                     // Show DC comparison if present
                     if let Some(dc) = self.dc {
                         let outcome = if result.total >= dc {
-                            Span::styled("SUCCESS!", self.theme.roll_result_style(false, false, Some(true)))
+                            Span::styled(
+                                "SUCCESS!",
+                                self.theme.roll_result_style(false, false, Some(true)),
+                            )
                         } else {
-                            Span::styled("FAILURE", self.theme.roll_result_style(false, false, Some(false)))
+                            Span::styled(
+                                "FAILURE",
+                                self.theme.roll_result_style(false, false, Some(false)),
+                            )
                         };
 
                         lines.push(Line::from(vec![
@@ -186,7 +162,9 @@ impl Widget for DiceRollWidget<'_> {
             }
         }
 
-        let paragraph = Paragraph::new(lines).alignment(Alignment::Center);
+        let paragraph = Paragraph::new(lines)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: false });
         paragraph.render(inner, buf);
     }
 }

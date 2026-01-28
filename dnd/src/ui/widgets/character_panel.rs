@@ -81,9 +81,9 @@ impl Widget for CharacterPanelWidget<'_> {
 
         let gauge = Gauge::default()
             .block(Block::default())
-            .gauge_style(Style::default().fg(hp_color))
+            .gauge_style(Style::default().bg(hp_color).fg(ratatui::style::Color::Black))
             .ratio(hp_ratio as f64)
-            .label(hp_label);
+            .label(Span::styled(hp_label, Style::default().fg(ratatui::style::Color::White).add_modifier(Modifier::BOLD)));
         gauge.render(chunks[1], buf);
 
         // AC, Initiative, Speed - on two lines to avoid cutoff

@@ -24,7 +24,6 @@ pub enum InputMode {
     Command,
 }
 
-
 /// State for a dice roll in progress (for animation)
 #[derive(Debug, Clone)]
 pub struct RollingDice {
@@ -151,9 +150,17 @@ impl App {
 
     /// Add a narrative entry
     pub fn add_narrative(&mut self, content: String, entry_type: NarrativeType) {
-        self.narrative_history.push(NarrativeItem { content, entry_type });
-        // Only auto-scroll if user hasn't manually scrolled up
-        if self.scroll_locked_to_bottom {
+        // Don't auto-scroll for player actions - let them be visible where user is looking
+        // Only auto-scroll for DM/system responses
+        let should_scroll = self.scroll_locked_to_bottom
+            && !matches!(entry_type, NarrativeType::PlayerAction);
+
+        self.narrative_history.push(NarrativeItem {
+            content,
+            entry_type,
+        });
+
+        if should_scroll {
             self.scroll_to_bottom();
         }
     }
@@ -165,8 +172,35 @@ impl App {
         self.scroll_locked_to_bottom = true;
     }
 
+    /// Estimate max scroll based on narrative content
+    /// Uses conservative estimate assuming ~60 char effective width
+    fn estimate_max_scroll(&self) -> usize {
+        const ESTIMATED_WIDTH: usize = 60;
+        const ESTIMATED_VISIBLE_HEIGHT: usize = 20;
+
+        let estimated_lines: usize = self
+            .narrative_history
+            .iter()
+            .map(|item| {
+                // Count lines in content, estimate wrapping for each
+                item.content
+                    .lines()
+                    .map(|line| (line.len() / ESTIMATED_WIDTH).max(1))
+                    .sum::<usize>()
+                    + 1 // blank line between entries
+            })
+            .sum();
+
+        estimated_lines.saturating_sub(ESTIMATED_VISIBLE_HEIGHT)
+    }
+
     /// Scroll narrative up (unlocks from bottom)
     pub fn scroll_up(&mut self, lines: usize) {
+        // If scroll is at a huge "bottom" value, reset to estimated max first
+        let max_scroll = self.estimate_max_scroll();
+        if self.narrative_scroll > max_scroll {
+            self.narrative_scroll = max_scroll;
+        }
         self.narrative_scroll = self.narrative_scroll.saturating_sub(lines);
         // User manually scrolled up, unlock from bottom
         self.scroll_locked_to_bottom = false;
@@ -175,6 +209,9 @@ impl App {
     /// Scroll narrative down
     pub fn scroll_down(&mut self, lines: usize) {
         self.narrative_scroll = self.narrative_scroll.saturating_add(lines);
+        // Cap to reasonable max to prevent overflow issues
+        let max_scroll = self.estimate_max_scroll();
+        self.narrative_scroll = self.narrative_scroll.min(max_scroll + 100);
         // Note: we don't re-lock to bottom here - user must press G to re-lock
     }
 
@@ -387,10 +424,7 @@ impl App {
                     );
                 } else {
                     self.session.world_mut().short_rest();
-                    self.add_narrative(
-                        "You take a short rest.".to_string(),
-                        NarrativeType::System,
-                    );
+                    self.add_narrative("You take a short rest.".to_string(), NarrativeType::System);
                 }
                 true
             }
@@ -474,11 +508,7 @@ impl App {
                         };
                         format!(
                             "{}: {} = {} vs DC {} - {}",
-                            rolling.purpose,
-                            rolling.expression,
-                            result.total,
-                            dc_val,
-                            outcome
+                            rolling.purpose, rolling.expression, result.total, dc_val, outcome
                         )
                     } else {
                         format!(

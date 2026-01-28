@@ -72,26 +72,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(None) => {
             // User cancelled
             disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
             return Ok(());
         }
         Err(e) => {
             disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
             eprintln!("Character creation failed: {e}");
             std::process::exit(1);
         }
     };
 
     // Create session with the custom character
-    let config = SessionConfig::new("The Dragon's Lair")
-        .with_starting_location("The Rusty Dragon Inn");
+    let config =
+        SessionConfig::new("The Dragon's Lair").with_starting_location("The Rusty Dragon Inn");
 
     let session = match GameSession::new_with_character(config, character).await {
         Ok(s) => s,
         Err(e) => {
             disable_raw_mode()?;
-            execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
             eprintln!("Failed to create game session: {e}");
             std::process::exit(1);
         }
@@ -102,7 +114,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
 
     if let Err(e) = result {
         eprintln!("Error: {e}");
@@ -203,6 +219,10 @@ async fn run_app<B: ratatui::backend::Backend>(
             app.add_narrative(input.clone(), dnd_core::world::NarrativeType::PlayerAction);
             app.set_status("Processing...");
             terminal.draw(|f| render(f, &app))?;
+
+            // Ensure the draw is flushed to terminal before async wait
+            use std::io::Write;
+            let _ = std::io::stdout().flush();
 
             if let Err(e) = app.process_player_input_without_echo(&input).await {
                 app.set_status(format!("Error: {e}"));
