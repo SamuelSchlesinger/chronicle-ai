@@ -4,6 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 At the end of each session, if you learned something important about the codebase that isn't documented here, add it.
 
+## Licensing Compliance
+
+This project uses D&D content under the **SRD 5.2 (Creative Commons Attribution 4.0)** license. When adding or modifying D&D-related content:
+
+**Only use content from the SRD 5.2:**
+- Reference: https://dnd.wizards.com/resources/systems-reference-document
+- The SRD includes: 9 races, 12 classes, basic spells, monsters, and core mechanics
+
+**Do NOT include copyrighted content from:**
+- Player's Handbook (beyond SRD content)
+- Monster Manual (beyond SRD creatures)
+- Other D&D sourcebooks (Xanathar's, Tasha's, etc.)
+- Setting-specific content (Forgotten Realms lore, named NPCs, etc.)
+
+**Safe to use:**
+- All races: Human, Elf, Dwarf, Halfling, Half-Orc, Half-Elf, Tiefling, Gnome, Dragonborn
+- All 12 base classes with one subclass each (per SRD)
+- Spells, monsters, and magic items listed in the SRD
+- Core game mechanics (ability scores, skills, combat rules, etc.)
+- Original content you create
+
+**When in doubt:** Check the SRD document directly or use generic/original content instead.
+
 ## Build Commands
 
 ```bash
