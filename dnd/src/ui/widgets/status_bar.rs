@@ -8,14 +8,18 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use dnd_core::world::{Character, GameMode};
+use dnd_core::world::GameMode;
 
+use crate::ai_worker::WorldUpdate;
 use crate::app::InputMode;
 use crate::ui::theme::GameTheme;
 
 /// Status bar widget showing quick stats
 pub struct StatusBarWidget<'a> {
-    character: &'a Character,
+    hp_current: i32,
+    hp_maximum: i32,
+    hp_temporary: i32,
+    ac: u8,
     game_mode: GameMode,
     input_mode: InputMode,
     theme: &'a GameTheme,
@@ -23,15 +27,14 @@ pub struct StatusBarWidget<'a> {
 }
 
 impl<'a> StatusBarWidget<'a> {
-    pub fn new(
-        character: &'a Character,
-        game_mode: GameMode,
-        input_mode: InputMode,
-        theme: &'a GameTheme,
-    ) -> Self {
+    /// Create from a WorldUpdate (the new way)
+    pub fn from_world(world: &WorldUpdate, input_mode: InputMode, theme: &'a GameTheme) -> Self {
         Self {
-            character,
-            game_mode,
+            hp_current: world.player_hp.current,
+            hp_maximum: world.player_hp.maximum,
+            hp_temporary: world.player_hp.temporary,
+            ac: world.player_ac,
+            game_mode: world.mode,
             input_mode,
             theme,
             message: None,
@@ -46,19 +49,25 @@ impl<'a> StatusBarWidget<'a> {
 
 impl Widget for StatusBarWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let hp = &self.character.hit_points;
-        let hp_ratio = hp.ratio();
+        let hp_ratio = if self.hp_maximum > 0 {
+            self.hp_current as f32 / self.hp_maximum as f32
+        } else {
+            1.0
+        };
         let hp_color = self.theme.hp_color(hp_ratio);
 
         // HP display
-        let hp_text = if hp.temporary > 0 {
-            format!("HP: {}/{} (+{})", hp.current, hp.maximum, hp.temporary)
+        let hp_text = if self.hp_temporary > 0 {
+            format!(
+                "HP: {}/{} (+{})",
+                self.hp_current, self.hp_maximum, self.hp_temporary
+            )
         } else {
-            format!("HP: {}/{}", hp.current, hp.maximum)
+            format!("HP: {}/{}", self.hp_current, self.hp_maximum)
         };
 
         // AC display
-        let ac = self.character.current_ac();
+        let ac = self.ac;
 
         // Game mode indicator
         let game_mode_text = match self.game_mode {
@@ -149,11 +158,10 @@ impl Widget for HotkeyBarWidget<'_> {
                     ("A:attack", true),
                     ("c:cast", true),
                     ("d:dash", true),
-                    ("D:dodge", true),
-                    ("u:use item", true),
+                    ("u:use", true),
+                    ("I:inv", true),
                     ("1-9:target", true),
-                    ("e:end turn", true),
-                    ("i:input", false),
+                    ("e:end", false),
                     ("?:help", false),
                 ],
                 GameMode::Dialogue => vec![
@@ -164,10 +172,10 @@ impl Widget for HotkeyBarWidget<'_> {
                 ],
                 _ => vec![
                     ("i:insert", true),
-                    ("::command", true),
+                    ("I:inv", true),
+                    ("C:char", true),
+                    ("Q:quest", true),
                     ("j/k:scroll", true),
-                    ("Tab:panels", true),
-                    ("r:rest", false),
                     ("?:help", false),
                 ],
             },

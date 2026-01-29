@@ -4,16 +4,18 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, Mouse
 
 use dnd_core::world::{GameMode, NarrativeType};
 
+use crate::ai_worker::WorkerRequest;
 use crate::app::{App, InputMode};
 use crate::ui::Overlay;
 
 /// Result of handling an event
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum EventResult {
     Continue,
     Quit,
     NeedsRedraw,
     ProcessInput(bool), // bool indicates whether to await processing
+    SendRequest(WorkerRequest), // Send a request to the AI worker
 }
 
 /// Handle a terminal event
@@ -51,6 +53,47 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> EventResult {
     // Global shortcuts (always work)
     if let (KeyCode::Char('c'), KeyModifiers::CONTROL) = (key.code, key.modifiers) {
         return EventResult::Quit;
+    }
+
+    // If AI is processing, allow cancellation with Escape
+    if app.ai_processing {
+        if key.code == KeyCode::Esc {
+            app.cancel_processing();
+            return EventResult::NeedsRedraw;
+        }
+        // During processing, only allow scrolling
+        match key.code {
+            KeyCode::Char('j') | KeyCode::Down => {
+                app.scroll_down(1);
+                return EventResult::NeedsRedraw;
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                app.scroll_up(1);
+                return EventResult::NeedsRedraw;
+            }
+            KeyCode::Char('G') => {
+                app.scroll_to_bottom();
+                return EventResult::NeedsRedraw;
+            }
+            KeyCode::Char('g') => {
+                app.narrative_scroll = 0;
+                app.scroll_locked_to_bottom = false;
+                return EventResult::NeedsRedraw;
+            }
+            KeyCode::PageUp | KeyCode::Char('u')
+                if key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                app.scroll_up(10);
+                return EventResult::NeedsRedraw;
+            }
+            KeyCode::PageDown | KeyCode::Char('d')
+                if key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
+                app.scroll_down(10);
+                return EventResult::NeedsRedraw;
+            }
+            _ => return EventResult::Continue,
+        }
     }
 
     // Route based on input mode
@@ -145,15 +188,15 @@ fn handle_game_mode_hotkeys(app: &mut App, key: KeyEvent) -> EventResult {
 fn handle_exploration_hotkeys(app: &mut App, key: KeyEvent) -> EventResult {
     match key.code {
         KeyCode::Char('I') => {
-            app.set_status("Inventory not yet implemented");
+            app.toggle_inventory();
             EventResult::NeedsRedraw
         }
         KeyCode::Char('C') => {
-            app.set_status("Character sheet not yet implemented");
+            app.toggle_character_sheet();
             EventResult::NeedsRedraw
         }
         KeyCode::Char('Q') => {
-            app.set_status("Quest log not yet implemented");
+            app.toggle_quest_log();
             EventResult::NeedsRedraw
         }
         KeyCode::Char('J') => {
@@ -161,11 +204,13 @@ fn handle_exploration_hotkeys(app: &mut App, key: KeyEvent) -> EventResult {
             EventResult::NeedsRedraw
         }
         KeyCode::Char('r') => {
-            app.short_rest();
+            // Short rest - now done via player action since we don't own session
+            app.set_status("Type 'i' then 'I take a short rest' to rest");
             EventResult::NeedsRedraw
         }
         KeyCode::Char('R') => {
-            app.long_rest();
+            // Long rest - now done via player action since we don't own session
+            app.set_status("Type 'i' then 'I take a long rest' to rest");
             EventResult::NeedsRedraw
         }
         _ => EventResult::Continue,
@@ -207,12 +252,11 @@ fn handle_combat_hotkeys(app: &mut App, key: KeyEvent) -> EventResult {
             app.input_mode = InputMode::Insert;
             EventResult::NeedsRedraw
         }
-        // End turn
+        // End turn - now needs to be done via player action
         KeyCode::Char('e') => {
-            if let Some(ref mut combat) = app.session.world_mut().combat {
-                combat.next_turn();
-                app.add_narrative("You end your turn.".to_string(), NarrativeType::Combat);
-            }
+            // With the new architecture, we need to ask the DM to end the turn
+            app.set_input("I end my turn");
+            app.input_mode = InputMode::Insert;
             EventResult::NeedsRedraw
         }
         // Use item
@@ -222,13 +266,17 @@ fn handle_combat_hotkeys(app: &mut App, key: KeyEvent) -> EventResult {
             app.set_status("Type item name, then press Enter");
             EventResult::NeedsRedraw
         }
+        // Inventory (also works in combat)
+        KeyCode::Char('I') => {
+            app.toggle_inventory();
+            EventResult::NeedsRedraw
+        }
         // Target selection (1-9 keys)
         KeyCode::Char(c @ '1'..='9') => {
             let target_idx = c.to_digit(10).unwrap() as usize;
-            // Get combatant name if possible
+            // Get combatant name from local world copy
             let combatant_name = app
-                .session
-                .world()
+                .world
                 .combat
                 .as_ref()
                 .and_then(|combat| combat.combatants.get(target_idx - 1))
@@ -259,7 +307,7 @@ fn handle_dialogue_hotkeys(app: &mut App, key: KeyEvent) -> EventResult {
             EventResult::NeedsRedraw
         }
         KeyCode::Esc => {
-            app.session.world_mut().mode = GameMode::Exploration;
+            // End conversation - now done via narrative since we don't own session
             app.add_narrative(
                 "You end the conversation.".to_string(),
                 NarrativeType::System,
@@ -350,7 +398,10 @@ fn handle_command_mode(app: &mut App, key: KeyEvent) -> EventResult {
 
             // Process the command
             if command.len() > 1 {
-                app.process_command(&command);
+                let (_, request) = app.process_command(&command);
+                if let Some(req) = request {
+                    return EventResult::SendRequest(req);
+                }
             }
 
             if app.should_quit {
@@ -397,6 +448,27 @@ fn handle_overlay_key(app: &mut App, key: KeyEvent) -> EventResult {
     match key.code {
         KeyCode::Esc | KeyCode::Char('q') => {
             app.close_overlay();
+            EventResult::NeedsRedraw
+        }
+        KeyCode::Char('I') => {
+            // Close inventory overlay with 'I'
+            if matches!(app.overlay(), Some(Overlay::Inventory)) {
+                app.close_overlay();
+            }
+            EventResult::NeedsRedraw
+        }
+        KeyCode::Char('C') => {
+            // Close character sheet overlay with 'C'
+            if matches!(app.overlay(), Some(Overlay::CharacterSheet)) {
+                app.close_overlay();
+            }
+            EventResult::NeedsRedraw
+        }
+        KeyCode::Char('Q') => {
+            // Close quest log overlay with 'Q'
+            if matches!(app.overlay(), Some(Overlay::QuestLog)) {
+                app.close_overlay();
+            }
             EventResult::NeedsRedraw
         }
         KeyCode::Enter | KeyCode::Char(' ') => {

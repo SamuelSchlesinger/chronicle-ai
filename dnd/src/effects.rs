@@ -124,7 +124,9 @@ pub fn process_effect(app: &mut App, effect: &Effect) {
             );
         }
 
-        Effect::CombatantAdded { name, initiative, .. } => {
+        Effect::CombatantAdded {
+            name, initiative, ..
+        } => {
             app.add_narrative(
                 format!("{name} enters combat with initiative {initiative}."),
                 NarrativeType::Combat,
@@ -168,18 +170,14 @@ pub fn process_effect(app: &mut App, effect: &Effect) {
             uses_remaining,
         } => {
             app.add_narrative(
-                format!(
-                    "Used {feature_name}. ({uses_remaining} uses remaining)"
-                ),
+                format!("Used {feature_name}. ({uses_remaining} uses remaining)"),
                 NarrativeType::System,
             );
         }
 
         Effect::SpellSlotUsed { level, remaining } => {
             app.add_narrative(
-                format!(
-                    "Used a level {level} spell slot. ({remaining} remaining)"
-                ),
+                format!("Used a level {level} spell slot. ({remaining} remaining)"),
                 NarrativeType::System,
             );
         }
@@ -227,12 +225,183 @@ pub fn process_effect(app: &mut App, effect: &Effect) {
         Effect::FactRemembered { .. } => {
             // Story memory storage is handled in the DM agent
         }
+
+        // Inventory effects
+        Effect::ItemAdded {
+            item_name,
+            quantity,
+            new_total,
+        } => {
+            let qty_str = if *quantity > 1 {
+                format!("{} x ", quantity)
+            } else {
+                String::new()
+            };
+            app.add_narrative(
+                format!("Received {}{}! (now have {})", qty_str, item_name, new_total),
+                NarrativeType::System,
+            );
+        }
+
+        Effect::ItemRemoved {
+            item_name,
+            quantity,
+            remaining,
+        } => {
+            let qty_str = if *quantity > 1 {
+                format!("{} x ", quantity)
+            } else {
+                String::new()
+            };
+            if *remaining > 0 {
+                app.add_narrative(
+                    format!("Lost {}{}. ({} remaining)", qty_str, item_name, remaining),
+                    NarrativeType::System,
+                );
+            } else {
+                app.add_narrative(
+                    format!("Lost {}{}.", qty_str, item_name),
+                    NarrativeType::System,
+                );
+            }
+        }
+
+        Effect::ItemEquipped { item_name, slot } => {
+            app.add_narrative(
+                format!("Equipped {} in {} slot.", item_name, slot),
+                NarrativeType::System,
+            );
+        }
+
+        Effect::ItemUnequipped { item_name, slot } => {
+            app.add_narrative(
+                format!("Unequipped {} from {} slot.", item_name, slot),
+                NarrativeType::System,
+            );
+        }
+
+        Effect::ItemUsed { item_name, result } => {
+            app.add_narrative(
+                format!("Used {}. {}", item_name, result),
+                NarrativeType::System,
+            );
+        }
+
+        Effect::GoldChanged {
+            amount,
+            new_total,
+            reason,
+        } => {
+            let action = if *amount >= 0.0 { "Gained" } else { "Spent" };
+            app.add_narrative(
+                format!(
+                    "{} {:.0} gp ({}). Total: {:.0} gp",
+                    action,
+                    amount.abs(),
+                    reason,
+                    new_total
+                ),
+                NarrativeType::System,
+            );
+        }
+
+        Effect::AcChanged { new_ac, source } => {
+            app.add_narrative(
+                format!("AC changed to {} ({})", new_ac, source),
+                NarrativeType::System,
+            );
+        }
+
+        Effect::DeathSaveFailure {
+            total_failures,
+            source,
+            ..
+        } => {
+            app.add_narrative(
+                format!(
+                    "DEATH SAVE FAILURE from {}! ({}/3 failures)",
+                    source, total_failures
+                ),
+                NarrativeType::Combat,
+            );
+            if *total_failures >= 3 {
+                app.set_status("You have died!");
+            } else {
+                app.set_status(format!("Death saves: {}/3 failures", total_failures));
+            }
+        }
+
+        Effect::DeathSavesReset { .. } => {
+            app.add_narrative(
+                "Death saves reset - you're stable!".to_string(),
+                NarrativeType::System,
+            );
+        }
+
+        Effect::CharacterDied { cause, .. } => {
+            app.add_narrative(
+                format!("YOU HAVE DIED! Cause: {}", cause),
+                NarrativeType::Combat,
+            );
+            app.set_status("GAME OVER - Your character has died.");
+        }
+
+        Effect::DeathSaveSuccess {
+            roll,
+            total_successes,
+            ..
+        } => {
+            app.add_narrative(
+                format!(
+                    "Death save SUCCESS! Rolled {} ({}/3 successes)",
+                    roll, total_successes
+                ),
+                NarrativeType::Combat,
+            );
+            app.set_status(format!("Death saves: {}/3 successes", total_successes));
+        }
+
+        Effect::Stabilized { .. } => {
+            app.add_narrative(
+                "You have stabilized! No longer dying.".to_string(),
+                NarrativeType::Combat,
+            );
+            app.set_status("Stabilized - unconscious but stable");
+        }
+
+        Effect::ConcentrationBroken {
+            spell_name,
+            damage_taken,
+            roll,
+            dc,
+            ..
+        } => {
+            app.add_narrative(
+                format!(
+                    "CONCENTRATION BROKEN! Took {} damage, rolled {} vs DC {} - {} ends!",
+                    damage_taken, roll, dc, spell_name
+                ),
+                NarrativeType::Combat,
+            );
+            app.set_status(format!("Lost concentration on {}!", spell_name));
+        }
+
+        Effect::ConcentrationMaintained {
+            spell_name,
+            roll,
+            dc,
+            ..
+        } => {
+            app.add_narrative(
+                format!(
+                    "Concentration maintained! Rolled {} vs DC {} - {} continues.",
+                    roll, dc, spell_name
+                ),
+                NarrativeType::System,
+            );
+        }
     }
 }
 
-/// Process multiple effects
-pub fn process_effects(app: &mut App, effects: &[Effect]) {
-    for effect in effects {
-        process_effect(app, effect);
-    }
-}
+// Note: process_effects is not used in the async architecture.
+// Effects are processed individually via WorkerResponse::Effect.
