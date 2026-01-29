@@ -2,15 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Handoff Protocol
-
-**At the end of each development session**, update `UnreadMessage.md` with a message for the next developer agent. Include:
-- What you worked on
-- Current state of the code
-- Any known issues or incomplete work
-- Suggested next steps
-
-**At the start of each session**, read `UnreadMessage.md` to understand the current state, then clear it after reading.
+At the end of each session, if you learned something important about the codebase that isn't documented here, add it.
 
 ## Build Commands
 
@@ -24,53 +16,31 @@ cargo test --workspace
 # Run a single test
 cargo test test_name
 
-# Run example agents (requires ANTHROPIC_API_KEY in .env)
-cargo run --example simple_chat
-cargo run --example tool_agent
+# Run Claude API examples (requires ANTHROPIC_API_KEY in .env)
+cargo run -p claude --example simple_chat
+cargo run -p claude --example tool_use
 
 # Run the D&D game (requires ANTHROPIC_API_KEY in .env)
 cargo run -p dnd
 
 # Run D&D in headless mode
 cargo run -p dnd -- --headless --name "Thorin" --class fighter --race dwarf
+
+# Run D&D with Bevy GUI
+cargo run -p dnd-bevy
 ```
 
 ## Workspace Structure
 
-This workspace contains 6 crates:
+This workspace contains 5 crates:
 
 | Crate | Path | Description |
 |-------|------|-------------|
-| `agentic` | `lib/` | Core framework with Agent, Tool, Memory, Safety traits |
 | `claude` | `claude/` | Minimal Anthropic Claude API client |
 | `dnd-macros` | `dnd-macros/` | Procedural macros for tool definitions |
 | `dnd-core` | `dnd-core/` | D&D 5e game engine with AI Dungeon Master |
 | `dnd` | `dnd/` | Terminal UI application for D&D |
-| `agents` | `agents/` | Example agents and historical research |
-
-## Core Library (`lib/src/`)
-
-The `agentic` crate provides a trait-based framework for building AI agents:
-
-| Module | Purpose |
-|--------|---------|
-| `agent.rs` | `Agent` trait - central abstraction for processing messages |
-| `tool.rs` | `Tool` trait with `ToolRegistry` for executable functions |
-| `memory.rs` | `EpisodicMemory`, `SemanticMemory`, `ProceduralMemory` traits |
-| `safety.rs` | `SafetyValidator`, `Guardrail`, `ApprovalWorkflow` traits |
-| `context.rs` | `ContextManager`, `Retriever`, `StatePersistence` traits |
-| `llm/` | LLM providers - `AnthropicProvider` with streaming support |
-| `id.rs` | Type-safe ID newtypes (AgentId, ToolId, MessageId, etc.) |
-| `message.rs` | Message types with ContentBlock variants |
-| `action.rs` | Action types for safety validation |
-| `error.rs` | Error types using thiserror |
-
-### Key Design Patterns
-
-1. **Type-safe IDs**: All IDs are newtypes around UUID
-2. **Async traits**: All major traits use `#[async_trait]`
-3. **Builder pattern**: Configuration uses builder pattern
-4. **Content blocks**: Messages use `Vec<ContentBlock>` for mixed content
+| `dnd-bevy` | `dnd-bevy/` | Bevy GUI application for D&D |
 
 ## Claude API Client (`claude/src/`)
 
@@ -88,7 +58,7 @@ let response = client.complete(
 
 Features:
 - Non-streaming and streaming completions
-- Tool use with automatic execution loop
+- Tool use with automatic execution loop (`complete_with_tools`)
 - SSE parsing for streaming responses
 
 ## D&D Game Engine (`dnd-core/src/`)
@@ -152,29 +122,3 @@ struct RollDice {
     purpose: Option<String>,
 }
 ```
-
-### Using the trait directly:
-
-```rust
-#[async_trait]
-impl Tool for MyTool {
-    fn name(&self) -> &str { "my_tool" }
-    fn description(&self) -> &str { "What it does" }
-    fn input_schema(&self) -> &Value { /* JSON Schema */ }
-    async fn execute(&self, params: Value, ctx: &ToolContext) -> Result<ToolOutput, ToolError> {
-        // Implementation
-    }
-}
-```
-
-## Historical Research
-
-The `agents/research/` directory contains design research reports used during initial framework development:
-- Planning (HTN, GOAP, Tree-of-Thought)
-- Memory systems (episodic, semantic, procedural)
-- Safety and security patterns
-- Privacy and compliance
-- Multi-agent coordination
-- Industry survey (Anthropic MCP, OpenAI, Google, LangChain)
-
-See `ARCHITECTURE.md` for the current design documentation.

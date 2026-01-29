@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the architecture of the agentic workspace, focused on AI-driven D&D gameplay with long campaigns, multi-interface support, and programmatic testability.
+This document describes the architecture of the dnd-ai workspace, focused on AI-driven D&D gameplay with long campaigns, multi-interface support, and programmatic testability.
 
 > For historical context on the original framework design, see `docs/archive/FRAMEWORK_DESIGN.md`.
 
@@ -64,7 +64,7 @@ This document describes the architecture of the agentic workspace, focused on AI
 ## Crate Structure (Simplified)
 
 ```
-agentic/
+dnd-ai/
 ├── claude/              # Anthropic API client (focused, minimal)
 │   └── src/
 │       ├── lib.rs       # Client, Message, Tool, Stream
@@ -91,7 +91,7 @@ agentic/
 ```
 
 **Key changes from current structure:**
-- `agentic` lib → `claude` (focused Anthropic client, no generic Agent trait)
+- Generic agent framework → `claude` (focused Anthropic client, no generic Agent trait)
 - `agents/src/dnd/` → `dnd-core` (promoted to its own crate)
 - Remove unused abstractions (SafetyValidator, generic Memory traits, etc.)
 
