@@ -3,7 +3,8 @@ name = "dnd-core"
 version = "0.1.0"
 edition = "2021"
 description = "D&D 5e game engine with AI Dungeon Master"
-license = "MIT"
+license.workspace = true
+authors.workspace = true
 
 [dependencies]
 claude = { path = "../claude" }

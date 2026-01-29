@@ -3,7 +3,8 @@ name = "claude"
 version = "0.1.0"
 edition = "2021"
 description = "Minimal Anthropic Claude API client"
-license = "MIT"
+license.workspace = true
+authors.workspace = true
 
 [dependencies]
 reqwest = { version = "0.12", features = ["json", "stream"] }

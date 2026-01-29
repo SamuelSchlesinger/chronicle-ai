@@ -3,7 +3,8 @@ name = "dnd-macros"
 version = "0.1.0"
 edition = "2021"
 description = "Proc macros for D&D tools"
-license = "MIT"
+license.workspace = true
+authors.workspace = true
 
 [lib]
 proc-macro = true

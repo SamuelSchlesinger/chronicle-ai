@@ -3,7 +3,8 @@ name = "dnd"
 version = "0.1.0"
 edition = "2021"
 description = "D&D Dungeon Master TUI"
-license = "MIT"
+license.workspace = true
+authors.workspace = true
 
 [[bin]]
 name = "dnd"

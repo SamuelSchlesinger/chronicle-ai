@@ -1,3 +1,7 @@
 [workspace]
 members = ["claude", "dnd-macros", "dnd-core", "dnd", "dnd-bevy"]
 resolver = "2"
+
+[workspace.package]
+license = "CC-BY-NC-4.0"
+authors = ["Samuel Schlesinger"]
