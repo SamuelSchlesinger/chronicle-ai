@@ -147,7 +147,9 @@ impl AbilityScores {
 
     pub fn modifier(&self, ability: Ability) -> i8 {
         let score = self.get(ability) as i8;
-        (score - 10) / 2
+        // Use floor division to correctly handle negative numbers
+        // D&D 5e: score 8-9 = -1, 10-11 = 0, 12-13 = +1, etc.
+        (score - 10).div_euclid(2)
     }
 }
 
@@ -189,9 +191,19 @@ impl Skill {
         match self {
             Skill::Athletics => Ability::Strength,
             Skill::Acrobatics | Skill::SleightOfHand | Skill::Stealth => Ability::Dexterity,
-            Skill::Arcana | Skill::History | Skill::Investigation | Skill::Nature | Skill::Religion => Ability::Intelligence,
-            Skill::AnimalHandling | Skill::Insight | Skill::Medicine | Skill::Perception | Skill::Survival => Ability::Wisdom,
-            Skill::Deception | Skill::Intimidation | Skill::Performance | Skill::Persuasion => Ability::Charisma,
+            Skill::Arcana
+            | Skill::History
+            | Skill::Investigation
+            | Skill::Nature
+            | Skill::Religion => Ability::Intelligence,
+            Skill::AnimalHandling
+            | Skill::Insight
+            | Skill::Medicine
+            | Skill::Perception
+            | Skill::Survival => Ability::Wisdom,
+            Skill::Deception | Skill::Intimidation | Skill::Performance | Skill::Persuasion => {
+                Ability::Charisma
+            }
         }
     }
 
@@ -566,9 +578,15 @@ impl CharacterClass {
     pub fn hit_die(&self) -> DieType {
         match self {
             CharacterClass::Barbarian => DieType::D12,
-            CharacterClass::Fighter | CharacterClass::Paladin | CharacterClass::Ranger => DieType::D10,
-            CharacterClass::Bard | CharacterClass::Cleric | CharacterClass::Druid
-            | CharacterClass::Monk | CharacterClass::Rogue | CharacterClass::Warlock => DieType::D8,
+            CharacterClass::Fighter | CharacterClass::Paladin | CharacterClass::Ranger => {
+                DieType::D10
+            }
+            CharacterClass::Bard
+            | CharacterClass::Cleric
+            | CharacterClass::Druid
+            | CharacterClass::Monk
+            | CharacterClass::Rogue
+            | CharacterClass::Warlock => DieType::D8,
             CharacterClass::Sorcerer | CharacterClass::Wizard => DieType::D6,
         }
     }
@@ -719,10 +737,24 @@ pub struct Item {
     pub magical: bool,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+impl Item {
+    /// Returns true if this item type can stack in inventory.
+    /// Weapons, armor, and shields don't stack (each is a distinct item).
+    /// Consumables and gear can stack.
+    pub fn is_stackable(&self) -> bool {
+        match self.item_type {
+            ItemType::Weapon | ItemType::Armor | ItemType::Shield => false,
+            ItemType::Wand | ItemType::Ring | ItemType::Wondrous => false, // Unique items
+            ItemType::Potion | ItemType::Scroll | ItemType::Adventuring | ItemType::Tool | ItemType::Other => true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ItemType {
     Weapon,
     Armor,
+    Shield,
     Potion,
     Scroll,
     Wand,
@@ -740,9 +772,313 @@ pub struct Inventory {
     pub gold: f32,
 }
 
+// ============================================================================
+// Equipment System
+// ============================================================================
+
+/// Equipment slots for what's actively equipped.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Equipment {
+    pub armor: Option<ArmorItem>,
+    pub shield: Option<Item>,
+    pub main_hand: Option<WeaponItem>,
+    pub off_hand: Option<Item>,
+}
+
+impl Equipment {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// Armor with D&D 5e properties.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArmorItem {
+    pub base: Item,
+    pub armor_type: ArmorType,
+    pub base_ac: u8,
+    pub strength_requirement: Option<u8>,
+    pub stealth_disadvantage: bool,
+}
+
+impl ArmorItem {
+    pub fn new(name: impl Into<String>, armor_type: ArmorType, base_ac: u8) -> Self {
+        Self {
+            base: Item {
+                name: name.into(),
+                quantity: 1,
+                weight: 0.0,
+                value_gp: 0.0,
+                description: None,
+                item_type: ItemType::Armor,
+                magical: false,
+            },
+            armor_type,
+            base_ac,
+            strength_requirement: None,
+            stealth_disadvantage: false,
+        }
+    }
+
+    pub fn with_weight(mut self, weight: f32) -> Self {
+        self.base.weight = weight;
+        self
+    }
+
+    pub fn with_value(mut self, value_gp: f32) -> Self {
+        self.base.value_gp = value_gp;
+        self
+    }
+
+    pub fn with_strength_requirement(mut self, str_req: u8) -> Self {
+        self.strength_requirement = Some(str_req);
+        self
+    }
+
+    pub fn with_stealth_disadvantage(mut self) -> Self {
+        self.stealth_disadvantage = true;
+        self
+    }
+
+    pub fn magical(mut self) -> Self {
+        self.base.magical = true;
+        self
+    }
+}
+
+/// Weapons with D&D 5e properties.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeaponItem {
+    pub base: Item,
+    pub damage_dice: String,
+    pub damage_type: WeaponDamageType,
+    pub properties: Vec<WeaponProperty>,
+    pub range: Option<(u32, u32)>,
+}
+
+impl WeaponItem {
+    pub fn new(name: impl Into<String>, damage_dice: impl Into<String>, damage_type: WeaponDamageType) -> Self {
+        Self {
+            base: Item {
+                name: name.into(),
+                quantity: 1,
+                weight: 0.0,
+                value_gp: 0.0,
+                description: None,
+                item_type: ItemType::Weapon,
+                magical: false,
+            },
+            damage_dice: damage_dice.into(),
+            damage_type,
+            properties: Vec::new(),
+            range: None,
+        }
+    }
+
+    pub fn with_weight(mut self, weight: f32) -> Self {
+        self.base.weight = weight;
+        self
+    }
+
+    pub fn with_value(mut self, value_gp: f32) -> Self {
+        self.base.value_gp = value_gp;
+        self
+    }
+
+    pub fn with_properties(mut self, properties: Vec<WeaponProperty>) -> Self {
+        self.properties = properties;
+        self
+    }
+
+    pub fn with_range(mut self, normal: u32, long: u32) -> Self {
+        self.range = Some((normal, long));
+        self
+    }
+
+    pub fn magical(mut self) -> Self {
+        self.base.magical = true;
+        self
+    }
+
+    pub fn is_finesse(&self) -> bool {
+        self.properties.contains(&WeaponProperty::Finesse)
+    }
+
+    pub fn is_ranged(&self) -> bool {
+        self.range.is_some() || self.properties.contains(&WeaponProperty::Thrown)
+    }
+
+    pub fn is_two_handed(&self) -> bool {
+        self.properties.contains(&WeaponProperty::TwoHanded)
+    }
+
+    pub fn versatile_damage(&self) -> Option<&str> {
+        for prop in &self.properties {
+            if let WeaponProperty::Versatile(dice) = prop {
+                return Some(dice);
+            }
+        }
+        None
+    }
+}
+
+/// Weapon damage type (separate from spell/effect damage types).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WeaponDamageType {
+    Slashing,
+    Piercing,
+    Bludgeoning,
+}
+
+impl WeaponDamageType {
+    pub fn name(&self) -> &'static str {
+        match self {
+            WeaponDamageType::Slashing => "slashing",
+            WeaponDamageType::Piercing => "piercing",
+            WeaponDamageType::Bludgeoning => "bludgeoning",
+        }
+    }
+}
+
+/// Weapon properties per D&D 5e.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WeaponProperty {
+    Finesse,
+    Light,
+    Heavy,
+    TwoHanded,
+    Versatile(String),
+    Thrown,
+    Ammunition,
+    Loading,
+    Reach,
+}
+
+/// Consumable item effects.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ConsumableEffect {
+    /// Healing potion - roll dice and add bonus
+    Healing { dice: String, bonus: i32 },
+    /// Restore a spell slot of the given level
+    RestoreSpellSlot { level: u8 },
+    /// Remove a condition
+    RemoveCondition { condition: Condition },
+    /// Grant a condition for a duration
+    GrantCondition { condition: Condition, duration_rounds: u32 },
+    /// Cast a spell from a scroll
+    CastSpell { spell_name: String, level: u8 },
+    /// Grant temporary hit points
+    TemporaryHitPoints { amount: i32 },
+    /// Grant advantage on a type of roll for duration
+    GrantAdvantage { roll_type: String, duration_rounds: u32 },
+}
+
+/// A consumable item with its effect.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsumableItem {
+    pub base: Item,
+    pub effect: ConsumableEffect,
+}
+
+impl ConsumableItem {
+    pub fn healing_potion(name: impl Into<String>, dice: impl Into<String>, bonus: i32, value_gp: f32) -> Self {
+        Self {
+            base: Item {
+                name: name.into(),
+                quantity: 1,
+                weight: 0.5,
+                value_gp,
+                description: Some("A magical potion that restores health when consumed.".to_string()),
+                item_type: ItemType::Potion,
+                magical: true,
+            },
+            effect: ConsumableEffect::Healing { dice: dice.into(), bonus },
+        }
+    }
+
+    pub fn spell_scroll(spell_name: impl Into<String>, level: u8, value_gp: f32) -> Self {
+        let spell_name_str: String = spell_name.into();
+        let name = format!("Scroll of {}", spell_name_str);
+        Self {
+            base: Item {
+                name,
+                quantity: 1,
+                weight: 0.0,
+                value_gp,
+                description: Some("A magical scroll containing a spell.".to_string()),
+                item_type: ItemType::Scroll,
+                magical: true,
+            },
+            effect: ConsumableEffect::CastSpell {
+                spell_name: spell_name_str,
+                level,
+            },
+        }
+    }
+}
+
 impl Inventory {
     pub fn total_weight(&self) -> f32 {
-        self.items.iter().map(|i| i.weight * i.quantity as f32).sum()
+        self.items
+            .iter()
+            .map(|i| i.weight * i.quantity as f32)
+            .sum()
+    }
+
+    /// Add an item to the inventory.
+    /// Stackable items (potions, scrolls, adventuring gear, etc.) stack with existing items.
+    /// Non-stackable items (weapons, armor, shields) are added as separate entries.
+    pub fn add_item(&mut self, item: Item) {
+        // Only stack stackable item types
+        if item.is_stackable() {
+            if let Some(existing) = self.items.iter_mut().find(|i| i.name == item.name) {
+                existing.quantity += item.quantity;
+                return;
+            }
+        }
+        self.items.push(item);
+    }
+
+    /// Remove an item from the inventory. Returns true if successful.
+    /// Name matching is case-insensitive.
+    pub fn remove_item(&mut self, name: &str, quantity: u32) -> bool {
+        let name_lower = name.to_lowercase();
+        if let Some(idx) = self.items.iter().position(|i| i.name.to_lowercase() == name_lower) {
+            if self.items[idx].quantity >= quantity {
+                self.items[idx].quantity -= quantity;
+                if self.items[idx].quantity == 0 {
+                    self.items.remove(idx);
+                }
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Find an item by name.
+    pub fn find_item(&self, name: &str) -> Option<&Item> {
+        self.items.iter().find(|i| i.name.to_lowercase() == name.to_lowercase())
+    }
+
+    /// Find an item by name (mutable).
+    pub fn find_item_mut(&mut self, name: &str) -> Option<&mut Item> {
+        self.items.iter_mut().find(|i| i.name.to_lowercase() == name.to_lowercase())
+    }
+
+    /// Check if the inventory contains an item.
+    pub fn has_item(&self, name: &str) -> bool {
+        self.find_item(name).is_some()
+    }
+
+    /// Adjust gold amount. Returns new total or error if insufficient funds.
+    pub fn adjust_gold(&mut self, amount: f32) -> Result<f32, &'static str> {
+        let new_total = self.gold + amount;
+        if new_total < 0.0 {
+            Err("Insufficient gold")
+        } else {
+            self.gold = new_total;
+            Ok(self.gold)
+        }
     }
 }
 
@@ -781,14 +1117,26 @@ impl RaceType {
 
     pub fn description(&self) -> &'static str {
         match self {
-            RaceType::Human => "Versatile and ambitious, humans are the most adaptable of all races.",
+            RaceType::Human => {
+                "Versatile and ambitious, humans are the most adaptable of all races."
+            }
             RaceType::Elf => "Graceful and long-lived, elves are masters of magic and artistry.",
-            RaceType::Dwarf => "Stout and hardy, dwarves are renowned craftsmen and fierce warriors.",
-            RaceType::Halfling => "Small but brave, halflings are known for their luck and stealth.",
-            RaceType::HalfOrc => "Strong and enduring, half-orcs combine human versatility with orcish might.",
+            RaceType::Dwarf => {
+                "Stout and hardy, dwarves are renowned craftsmen and fierce warriors."
+            }
+            RaceType::Halfling => {
+                "Small but brave, halflings are known for their luck and stealth."
+            }
+            RaceType::HalfOrc => {
+                "Strong and enduring, half-orcs combine human versatility with orcish might."
+            }
             RaceType::HalfElf => "Charismatic and adaptable, half-elves bridge two worlds.",
-            RaceType::Tiefling => "Touched by infernal heritage, tieflings possess innate magical abilities.",
-            RaceType::Gnome => "Curious and inventive, gnomes are natural tinkers and illusionists.",
+            RaceType::Tiefling => {
+                "Touched by infernal heritage, tieflings possess innate magical abilities."
+            }
+            RaceType::Gnome => {
+                "Curious and inventive, gnomes are natural tinkers and illusionists."
+            }
             RaceType::Dragonborn => "Proud and powerful, dragonborn carry the blood of dragons.",
         }
     }
@@ -926,7 +1274,9 @@ impl Background {
             Background::Charlatan => "You have always had a way with people.",
             Background::Criminal => "You have a history of breaking the law.",
             Background::Entertainer => "You thrive in front of an audience.",
-            Background::FolkHero => "You come from a humble background but are destined for greatness.",
+            Background::FolkHero => {
+                "You come from a humble background but are destined for greatness."
+            }
             Background::GuildArtisan => "You are a member of an artisan's guild.",
             Background::Hermit => "You lived in seclusion for a formative part of your life.",
             Background::Noble => "You understand wealth, power, and privilege.",
@@ -1030,6 +1380,7 @@ pub struct Character {
 
     // Equipment
     pub inventory: Inventory,
+    pub equipment: Equipment,
 
     // Background and race
     pub race: Race,
@@ -1060,6 +1411,7 @@ impl Character {
             saving_throw_proficiencies: HashSet::new(),
             languages: vec!["Common".to_string()],
             inventory: Inventory::default(),
+            equipment: Equipment::default(),
             race: Race {
                 name: "Human".to_string(),
                 subrace: None,
@@ -1105,12 +1457,48 @@ impl Character {
         }
     }
 
+    /// Calculate current AC from equipped armor and shield.
+    ///
+    /// If equipment is set, AC is calculated from equipped armor.
+    /// Otherwise, falls back to the armor_class field for backwards compatibility.
     pub fn current_ac(&self) -> u8 {
-        self.armor_class.calculate(self.ability_scores.modifier(Ability::Dexterity))
+        let dex_mod = self.ability_scores.modifier(Ability::Dexterity);
+
+        // Calculate base AC from equipped armor or unarmored
+        let base_ac = if let Some(ref armor) = self.equipment.armor {
+            match armor.armor_type {
+                ArmorType::Light => armor.base_ac as i8 + dex_mod,
+                ArmorType::Medium => armor.base_ac as i8 + dex_mod.min(2),
+                ArmorType::Heavy => armor.base_ac as i8,
+            }
+        } else if self.equipment.main_hand.is_some()
+            || self.equipment.shield.is_some()
+            || self.equipment.off_hand.is_some()
+        {
+            // Equipment is being used but no armor - unarmored defense
+            10 + dex_mod
+        } else {
+            // No equipment set - use legacy armor_class field
+            return self
+                .armor_class
+                .calculate(self.ability_scores.modifier(Ability::Dexterity));
+        };
+
+        // Add shield bonus if equipped
+        let shield_bonus: i8 = if self.equipment.shield.is_some() { 2 } else { 0 };
+
+        (base_ac + shield_bonus).max(1) as u8
     }
 
     pub fn is_conscious(&self) -> bool {
         self.hit_points.current > 0
+    }
+
+    /// Check if the character has a specific condition.
+    pub fn has_condition(&self, condition: Condition) -> bool {
+        self.conditions
+            .iter()
+            .any(|c| std::mem::discriminant(&c.condition) == std::mem::discriminant(&condition))
     }
 
     pub fn passive_perception(&self) -> i8 {
@@ -1301,7 +1689,8 @@ impl CombatState {
 
     pub fn add_combatant(&mut self, combatant: Combatant) {
         self.combatants.push(combatant);
-        self.combatants.sort_by(|a, b| b.initiative.cmp(&a.initiative));
+        self.combatants
+            .sort_by(|a, b| b.initiative.cmp(&a.initiative));
     }
 
     pub fn current_combatant(&self) -> Option<&Combatant> {
@@ -1355,7 +1744,13 @@ pub struct GameTime {
 
 impl GameTime {
     pub fn new(year: i32, month: u8, day: u8, hour: u8, minute: u8) -> Self {
-        Self { year, month, day, hour, minute }
+        Self {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+        }
     }
 
     pub fn advance_minutes(&mut self, minutes: u32) {
@@ -1531,6 +1926,24 @@ impl GameWorld {
         let max_hp = self.player_character.hit_points.maximum;
         self.player_character.hit_points.current = max_hp;
 
+        // Remove Unconscious condition if present (they're now healed)
+        self.player_character
+            .conditions
+            .retain(|c| c.condition != Condition::Unconscious);
+
+        // Reduce exhaustion by 1 level (if any)
+        for condition in &mut self.player_character.conditions {
+            if let Condition::Exhaustion(level) = &mut condition.condition {
+                if *level > 0 {
+                    *level -= 1;
+                }
+            }
+        }
+        // Remove exhaustion if reduced to 0
+        self.player_character
+            .conditions
+            .retain(|c| !matches!(c.condition, Condition::Exhaustion(0)));
+
         // Recover half hit dice
         self.player_character.hit_dice.recover_half();
 
@@ -1542,7 +1955,10 @@ impl GameWorld {
         // Reset feature uses (both short rest and long rest features)
         for feature in &mut self.player_character.features {
             if let Some(ref mut uses) = feature.uses {
-                if matches!(uses.recharge, RechargeType::LongRest | RechargeType::ShortRest) {
+                if matches!(
+                    uses.recharge,
+                    RechargeType::LongRest | RechargeType::ShortRest
+                ) {
                     uses.current = uses.maximum;
                 }
             }
@@ -1577,12 +1993,22 @@ pub fn create_sample_fighter(name: &str) -> Character {
         subclass: Some("Champion".to_string()),
     });
 
-    character.saving_throw_proficiencies.insert(Ability::Strength);
-    character.saving_throw_proficiencies.insert(Ability::Constitution);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Strength);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Constitution);
 
-    character.skill_proficiencies.insert(Skill::Athletics, ProficiencyLevel::Proficient);
-    character.skill_proficiencies.insert(Skill::Perception, ProficiencyLevel::Proficient);
-    character.skill_proficiencies.insert(Skill::Intimidation, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Athletics, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Perception, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Intimidation, ProficiencyLevel::Proficient);
 
     character.armor_class = ArmorClass {
         base: 16,
@@ -1628,6 +2054,15 @@ mod tests {
         assert_eq!(scores.modifier(Ability::Intelligence), 0);
         assert_eq!(scores.modifier(Ability::Wisdom), -1);
         assert_eq!(scores.modifier(Ability::Charisma), -2);
+
+        // Test odd scores below 10 (edge case for floor division)
+        let odd_scores = AbilityScores::new(9, 7, 5, 11, 13, 15);
+        assert_eq!(odd_scores.modifier(Ability::Strength), -1);  // 9 -> -1
+        assert_eq!(odd_scores.modifier(Ability::Dexterity), -2); // 7 -> -2
+        assert_eq!(odd_scores.modifier(Ability::Constitution), -3); // 5 -> -3
+        assert_eq!(odd_scores.modifier(Ability::Intelligence), 0);  // 11 -> 0
+        assert_eq!(odd_scores.modifier(Ability::Wisdom), 1);     // 13 -> +1
+        assert_eq!(odd_scores.modifier(Ability::Charisma), 2);   // 15 -> +2
     }
 
     #[test]
@@ -1673,5 +2108,215 @@ mod tests {
         let world = GameWorld::new("Test Campaign", character);
         assert_eq!(world.campaign_name, "Test Campaign");
         assert!(matches!(world.mode, GameMode::Exploration));
+    }
+
+    #[test]
+    fn test_inventory_add_item() {
+        let mut inventory = Inventory::default();
+        assert!(inventory.items.is_empty());
+
+        // Weapons don't stack - each is a separate item
+        let sword = Item {
+            name: "Longsword".to_string(),
+            quantity: 1,
+            weight: 3.0,
+            value_gp: 15.0,
+            description: None,
+            item_type: ItemType::Weapon,
+            magical: false,
+        };
+        inventory.add_item(sword);
+
+        assert_eq!(inventory.items.len(), 1);
+        assert_eq!(inventory.find_item("Longsword").unwrap().quantity, 1);
+
+        // Adding another weapon creates a second entry (weapons don't stack)
+        let sword2 = Item {
+            name: "Longsword".to_string(),
+            quantity: 1,
+            weight: 3.0,
+            value_gp: 15.0,
+            description: None,
+            item_type: ItemType::Weapon,
+            magical: false,
+        };
+        inventory.add_item(sword2);
+
+        assert_eq!(inventory.items.len(), 2); // Two separate swords
+
+        // Stackable items (like potions) DO stack
+        let potion1 = Item {
+            name: "Healing Potion".to_string(),
+            quantity: 1,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        };
+        inventory.add_item(potion1);
+        assert_eq!(inventory.items.len(), 3);
+
+        let potion2 = Item {
+            name: "Healing Potion".to_string(),
+            quantity: 2,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        };
+        inventory.add_item(potion2);
+        assert_eq!(inventory.items.len(), 3); // Still 3 - potions stacked
+        assert_eq!(inventory.find_item("Healing Potion").unwrap().quantity, 3);
+    }
+
+    #[test]
+    fn test_inventory_remove_item() {
+        let mut inventory = Inventory::default();
+        let potion = Item {
+            name: "Healing Potion".to_string(),
+            quantity: 3,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        };
+        inventory.add_item(potion);
+
+        assert!(inventory.remove_item("Healing Potion", 1));
+        assert_eq!(inventory.find_item("Healing Potion").unwrap().quantity, 2);
+
+        assert!(inventory.remove_item("Healing Potion", 2));
+        assert!(inventory.find_item("Healing Potion").is_none());
+
+        // Can't remove what you don't have
+        assert!(!inventory.remove_item("Healing Potion", 1));
+    }
+
+    #[test]
+    fn test_inventory_gold() {
+        let mut inventory = Inventory::default();
+        inventory.gold = 100.0;
+
+        assert!(inventory.adjust_gold(50.0).is_ok());
+        assert_eq!(inventory.gold, 150.0);
+
+        assert!(inventory.adjust_gold(-100.0).is_ok());
+        assert_eq!(inventory.gold, 50.0);
+
+        // Can't go negative
+        assert!(inventory.adjust_gold(-100.0).is_err());
+        assert_eq!(inventory.gold, 50.0);
+    }
+
+    #[test]
+    fn test_equipment_ac_calculation() {
+        let mut character = Character::new("Test");
+        character.ability_scores.dexterity = 16; // +3 DEX mod
+
+        // Unarmored: 10 + DEX
+        character.equipment.shield = Some(Item {
+            name: "Shield".to_string(),
+            quantity: 1,
+            weight: 6.0,
+            value_gp: 10.0,
+            description: None,
+            item_type: ItemType::Shield,
+            magical: false,
+        });
+        // With shield but no armor: 10 + 3 + 2 = 15
+        assert_eq!(character.current_ac(), 15);
+
+        // Light armor: base + full DEX
+        character.equipment.armor = Some(ArmorItem::new("Studded Leather", ArmorType::Light, 12));
+        // 12 + 3 + 2 = 17
+        assert_eq!(character.current_ac(), 17);
+
+        // Medium armor: base + DEX (max 2)
+        character.equipment.armor = Some(ArmorItem::new("Breastplate", ArmorType::Medium, 14));
+        // 14 + 2 (capped) + 2 = 18
+        assert_eq!(character.current_ac(), 18);
+
+        // Heavy armor: base only
+        character.equipment.armor = Some(ArmorItem::new("Plate Armor", ArmorType::Heavy, 18));
+        // 18 + 0 + 2 = 20
+        assert_eq!(character.current_ac(), 20);
+
+        // Remove shield
+        character.equipment.shield = None;
+        assert_eq!(character.current_ac(), 18);
+    }
+
+    #[test]
+    fn test_weapon_item() {
+        let sword = WeaponItem::new("Longsword", "1d8", WeaponDamageType::Slashing)
+            .with_properties(vec![WeaponProperty::Versatile("1d10".to_string())]);
+
+        assert_eq!(sword.damage_dice, "1d8");
+        assert!(!sword.is_finesse());
+        assert!(!sword.is_two_handed());
+        assert_eq!(sword.versatile_damage(), Some("1d10"));
+
+        let rapier = WeaponItem::new("Rapier", "1d8", WeaponDamageType::Piercing)
+            .with_properties(vec![WeaponProperty::Finesse]);
+        assert!(rapier.is_finesse());
+
+        // Two-handed weapons
+        let greatsword = WeaponItem::new("Greatsword", "2d6", WeaponDamageType::Slashing)
+            .with_properties(vec![WeaponProperty::Heavy, WeaponProperty::TwoHanded]);
+        assert!(greatsword.is_two_handed());
+    }
+
+    #[test]
+    fn test_item_stackability() {
+        // Weapons don't stack
+        let sword = Item {
+            name: "Longsword".to_string(),
+            quantity: 1,
+            weight: 3.0,
+            value_gp: 15.0,
+            description: None,
+            item_type: ItemType::Weapon,
+            magical: false,
+        };
+        assert!(!sword.is_stackable());
+
+        // Armor doesn't stack
+        let armor = Item {
+            name: "Chain Mail".to_string(),
+            quantity: 1,
+            weight: 55.0,
+            value_gp: 75.0,
+            description: None,
+            item_type: ItemType::Armor,
+            magical: false,
+        };
+        assert!(!armor.is_stackable());
+
+        // Potions stack
+        let potion = Item {
+            name: "Healing Potion".to_string(),
+            quantity: 1,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        };
+        assert!(potion.is_stackable());
+
+        // Adventuring gear stacks
+        let rope = Item {
+            name: "Rope".to_string(),
+            quantity: 1,
+            weight: 10.0,
+            value_gp: 1.0,
+            description: None,
+            item_type: ItemType::Adventuring,
+            magical: false,
+        };
+        assert!(rope.is_stackable());
     }
 }

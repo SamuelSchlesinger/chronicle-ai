@@ -31,6 +31,7 @@ pub mod class_data;
 pub mod dice;
 pub mod dm;
 pub mod headless;
+pub mod items;
 pub mod persist;
 pub mod rules;
 pub mod session;
@@ -55,6 +56,7 @@ mod tests {
     /// Roll dice using standard D&D notation
     #[derive(Tool, Deserialize)]
     #[tool(name = "roll_dice")]
+    #[allow(dead_code)]
     struct RollDice {
         /// Dice notation like "2d6+3" or "1d20"
         notation: String,
