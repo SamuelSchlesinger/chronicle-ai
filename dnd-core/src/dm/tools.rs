@@ -40,7 +40,34 @@ impl DmTools {
             Self::show_inventory(),
             Self::death_save(),
             Self::concentration_check(),
+            Self::change_location(),
         ]
+    }
+
+    fn change_location() -> Tool {
+        Tool {
+            name: "change_location".to_string(),
+            description: "Change the current location when the player travels somewhere new. Use this whenever the player moves to a different area, enters a building, or travels to a new place.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "new_location": {
+                        "type": "string",
+                        "description": "Name of the new location (e.g., 'The Dark Forest', 'Town Square', 'Goblin Cave')"
+                    },
+                    "location_type": {
+                        "type": "string",
+                        "enum": ["city", "town", "village", "dungeon", "wilderness", "building", "room", "other"],
+                        "description": "Type of location"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Brief description of the location for future reference"
+                    }
+                },
+                "required": ["new_location"]
+            }),
+        }
     }
 
     fn death_save() -> Tool {
@@ -785,6 +812,16 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
                 character_id: world.player_character.id,
                 damage_taken,
                 spell_name,
+            })
+        }
+        "change_location" => {
+            let new_location = input["new_location"].as_str()?.to_string();
+            let location_type = input["location_type"].as_str().map(|s| s.to_string());
+            let description = input["description"].as_str().map(|s| s.to_string());
+            Some(Intent::ChangeLocation {
+                new_location,
+                location_type,
+                description,
             })
         }
         // show_inventory is handled specially via execute_info_tool

@@ -1,82 +1,71 @@
 # Developer Handoff
 
-## What was done
+## What Was Done This Session
 
-Continued implementing D&D 5e mechanics and UI overlays from the previous session.
+### 1. Added Save/Load Buttons to Top Bar
+- Added Save, Load, and Settings buttons to the top bar in `panels.rs`
+- Save button creates a timestamped save file in `saves/` directory
+- Load button loads `saves/autosave.json`
+- Buttons show tooltips on hover
+- Buttons are disabled during processing or when no session is active
 
-### New Features Added This Session
+### 2. Added Status Tracking and Auto-Clear
+- Added `is_saving`, `is_loading`, and `status_set_time` fields to `AppState`
+- Created `clear_old_status` system that clears status messages after 3 seconds
+- Status messages during save/load show a spinner
+- Status messages are displayed in a semi-transparent gold frame for better visibility
 
-#### 1. Death Save Rolls (D&D 5e Rules)
-- Added `Intent::DeathSave { character_id }` for making death saving throws
-- Added `Effect::DeathSaveSuccess { target_id, roll, total_successes }`
-- Added `Effect::Stabilized { target_id }` (3 successes = stabilized)
-- Implemented `resolve_death_save()` in `dnd-core/src/rules.rs` with full D&D 5e rules:
-  - d20 roll, 10+ is success
-  - Natural 20: regain 1 HP and consciousness, reset death saves
-  - Natural 1: counts as 2 failures
-  - 3 successes: stabilized (unconscious but stable)
-  - 3 failures: death
-- Added `death_save` DM tool in `dnd-core/src/dm/tools.rs`
-- Added UI effect handlers in `dnd/src/effects.rs`
+### 3. Enhanced Visual Styling
+- Improved button hover effects with gold tint and border
+- Added gold stroke to hovered buttons
+- Added slight expansion effect on hover
+- Brighter pressed/active state
 
-#### 2. Concentration Checks (D&D 5e Rules)
-- Added `Intent::ConcentrationCheck { character_id, damage_taken, spell_name }`
-- Added `Effect::ConcentrationBroken { character_id, spell_name, damage_taken, roll, dc }`
-- Added `Effect::ConcentrationMaintained { character_id, spell_name, roll, dc }`
-- Implemented `resolve_concentration_check()` in `dnd-core/src/rules.rs`:
-  - Constitution saving throw
-  - DC = max(10, damage_taken / 2) per D&D 5e rules
-  - Success maintains concentration, failure breaks it
-- Added `concentration_check` DM tool
-- Added UI effect handlers
+### 4. Implemented Settings Overlay
+- Replaced placeholder with actual content
+- Display section (character panel expanded/collapsed toggle)
+- Audio section (placeholder)
+- Gameplay section (placeholder)
+- Save Files section with "Open saves folder" button (cross-platform)
+- About section with version info
 
-#### 3. Quest Log Overlay (Shift+Q)
-- Added `Overlay::QuestLog` variant
-- Added `quests: Vec<Quest>` to `WorldUpdate` struct in `dnd/src/ai_worker.rs`
-- Implemented `render_quest_log_overlay()` in `dnd/src/ui/render.rs`:
-  - Shows Active quests with objectives (completed/incomplete markers)
-  - Shows Completed quests (green)
-  - Shows Failed/Abandoned quests (red)
-  - Shows "No quests yet" message if empty
-- Added `toggle_quest_log()` method to `App`
-- Added Shift+Q keybinding in `dnd/src/events.rs`
-- Updated hotkey bar to show "Q:quest" shortcut
-- Updated help overlay to document Shift+Q
+### 5. Input History Navigation
+- Added command history (up to 100 commands)
+- Press Up/Down arrows to cycle through previous commands
+- History persists during session
+- Hint text updated to show history shortcut
 
-## Current State
+### 6. Keyboard Shortcuts
+- Added Ctrl+S / Cmd+S for quick save (works even while typing)
+- Updated help overlay to document all shortcuts
 
-- All 90 tests pass in dnd-core
-- Build compiles cleanly (only pre-existing dead code warnings in dnd/)
-- Death saves, concentration checks, and quest log overlay are fully implemented
+### 7. Infrastructure Updates
+- `saves/` directory is created automatically on startup
+- Registered `clear_old_status` system in main.rs
 
-## Files Modified This Session
+## Files Modified
 
 | File | Changes |
 |------|---------|
-| `dnd-core/src/rules.rs` | Added DeathSave/ConcentrationCheck intents, new effects, resolution methods |
-| `dnd-core/src/dm/tools.rs` | Added death_save and concentration_check tools |
-| `dnd/src/effects.rs` | Added UI handlers for new effects (DeathSaveSuccess, Stabilized, ConcentrationBroken, ConcentrationMaintained) |
-| `dnd/src/ai_worker.rs` | Added quests field to WorldUpdate |
-| `dnd/src/ui/render.rs` | Added QuestLog overlay, render_quest_log_overlay(), updated help text |
-| `dnd/src/app.rs` | Added toggle_quest_log() method |
-| `dnd/src/events.rs` | Added Shift+Q keybinding, Q to close quest log |
-| `dnd/src/ui/widgets/status_bar.rs` | Added Q:quest to hotkey bar |
+| `dnd-bevy/src/state.rs` | Added save/load tracking, status timing, input history fields and methods |
+| `dnd-bevy/src/ui/panels.rs` | Added Save/Load/Settings buttons to top bar |
+| `dnd-bevy/src/ui/mod.rs` | Enhanced hover effects, added Ctrl+S shortcut |
+| `dnd-bevy/src/ui/overlays.rs` | Full settings content, updated help shortcuts |
+| `dnd-bevy/src/ui/input.rs` | Added history navigation with Up/Down arrows |
+| `dnd-bevy/src/main.rs` | Create saves/ directory, register clear_old_status |
+| `dnd-bevy/src/effects.rs` | Updated set_status calls with time parameter |
 
-## Known Limitations
+## Current State
 
-- No weight/encumbrance enforcement yet
-- Attunement for magical items is deferred
-- No dual wielding support
-- Critical hits on unconscious targets don't auto-crit
-- Journal overlay (Shift+J) is still a placeholder
+- Build succeeds with only pre-existing unused code warnings
+- All UX enhancements are functional
+- Quick action buttons work (already existed)
+- Input history works with Up/Down arrows
 
-## Next Steps
+## Suggested Next Steps
 
-### Core Mechanics
-1. Trigger concentration checks automatically when a concentrating character takes damage
-2. Trigger death save rolls automatically on player's turn when at 0 HP
-3. Add weight/encumbrance enforcement
-
-### UI Enhancements
-1. Implement Journal overlay (Shift+J) - notes and game events log
-2. Narrative widget scroll estimation uses byte length - low priority fix
+1. Add a file picker for Load Game (currently hardcoded to autosave.json)
+2. Add autosave functionality (save on certain events)
+3. Integrate dice rolling animations when dice effects occur
+4. Add sound effects
+5. Add font size scaling in settings

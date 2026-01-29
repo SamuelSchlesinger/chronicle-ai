@@ -409,8 +409,10 @@ impl DungeonMaster {
 
             // Add tool uses
             for tool in &tool_uses {
-                let input: serde_json::Value =
-                    serde_json::from_str(&tool.json_buffer).unwrap_or(serde_json::Value::Null);
+                // Parse JSON input, defaulting to empty object if parsing fails
+                // (Claude API requires tool_use.input to be a valid dictionary)
+                let input: serde_json::Value = serde_json::from_str(&tool.json_buffer)
+                    .unwrap_or_else(|_| serde_json::json!({}));
                 assistant_content.push(ContentBlock::ToolUse {
                     id: tool.id.clone(),
                     name: tool.name.clone(),
@@ -427,8 +429,9 @@ impl DungeonMaster {
             // Execute tools and collect results
             let mut tool_results = Vec::new();
             for tool in tool_uses {
-                let input: serde_json::Value =
-                    serde_json::from_str(&tool.json_buffer).unwrap_or(serde_json::Value::Null);
+                // Parse JSON input, defaulting to empty object if parsing fails
+                let input: serde_json::Value = serde_json::from_str(&tool.json_buffer)
+                    .unwrap_or_else(|_| serde_json::json!({}));
 
                 // First check if it's an informational tool
                 let result = if let Some(info_result) = execute_info_tool(&tool.name, &input, world)

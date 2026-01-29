@@ -183,6 +183,13 @@ pub enum Intent {
         damage_taken: i32,
         spell_name: String,
     },
+
+    /// Change the current location
+    ChangeLocation {
+        new_location: String,
+        location_type: Option<String>,
+        description: Option<String>,
+    },
 }
 
 /// Initial combatant data for starting combat.
@@ -458,6 +465,12 @@ pub enum Effect {
         roll: i32,
         dc: i32,
     },
+
+    /// Location changed
+    LocationChanged {
+        previous_location: String,
+        new_location: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -605,6 +618,11 @@ impl RulesEngine {
                 damage_taken,
                 spell_name,
             } => self.resolve_concentration_check(world, character_id, damage_taken, &spell_name),
+            Intent::ChangeLocation {
+                new_location,
+                location_type,
+                description,
+            } => self.resolve_change_location(world, &new_location, location_type, description),
             #[allow(unreachable_patterns)]
             _ => Resolution::new("Intent not yet implemented"),
         }
@@ -1865,6 +1883,25 @@ impl RulesEngine {
             })
         }
     }
+
+    fn resolve_change_location(
+        &self,
+        world: &GameWorld,
+        new_location: &str,
+        _location_type: Option<String>,
+        _description: Option<String>,
+    ) -> Resolution {
+        let previous_location = world.current_location.name.clone();
+
+        Resolution::new(format!(
+            "You travel from {} to {}.",
+            previous_location, new_location
+        ))
+        .with_effect(Effect::LocationChanged {
+            previous_location,
+            new_location: new_location.to_string(),
+        })
+    }
 }
 
 #[allow(dead_code)]
@@ -2192,6 +2229,9 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
 
         Effect::ConcentrationMaintained { .. } => {
             // Informational - concentration continues
+        }
+        Effect::LocationChanged { new_location, .. } => {
+            world.current_location.name = new_location.clone();
         }
     }
 }
