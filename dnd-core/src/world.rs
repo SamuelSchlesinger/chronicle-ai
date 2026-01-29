@@ -1715,11 +1715,24 @@ impl Character {
 
     /// Add a condition if not already present. Returns true if the condition was added.
     pub fn add_condition(&mut self, condition: Condition, source: impl Into<String>) -> bool {
+        self.add_condition_with_duration(condition, source, None)
+    }
+
+    /// Add a condition with optional duration. Returns true if the condition was added.
+    pub fn add_condition_with_duration(
+        &mut self,
+        condition: Condition,
+        source: impl Into<String>,
+        duration_rounds: Option<u32>,
+    ) -> bool {
         if self.has_condition(condition) {
             false
         } else {
-            self.conditions
-                .push(ActiveCondition::new(condition, source));
+            let mut active = ActiveCondition::new(condition, source);
+            if let Some(duration) = duration_rounds {
+                active = active.with_duration(duration);
+            }
+            self.conditions.push(active);
             true
         }
     }

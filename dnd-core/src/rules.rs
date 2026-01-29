@@ -396,6 +396,7 @@ pub enum Effect {
         target_id: CharacterId,
         condition: Condition,
         source: String,
+        duration_rounds: Option<u32>,
     },
 
     /// A condition was removed
@@ -1639,21 +1640,27 @@ impl RulesEngine {
         target_id: CharacterId,
         condition: Condition,
         source: &str,
-        _duration_rounds: Option<u32>,
+        duration_rounds: Option<u32>,
     ) -> Resolution {
         let target = &world.player_character;
 
+        let duration_text = duration_rounds
+            .map(|d| format!(" for {} rounds", d))
+            .unwrap_or_default();
+
         let resolution = Resolution::new(format!(
-            "{} is now {} ({})",
+            "{} is now {} ({}){}",
             target.name,
             condition.name(),
-            source
+            source,
+            duration_text
         ));
 
         resolution.with_effect(Effect::ConditionApplied {
             target_id,
             condition,
             source: source.to_string(),
+            duration_rounds,
         })
     }
 
@@ -3145,9 +3152,14 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
             }
         }
         Effect::ConditionApplied {
-            condition, source, ..
+            condition,
+            source,
+            duration_rounds,
+            ..
         } => {
-            world.player_character.add_condition(*condition, source.clone());
+            world
+                .player_character
+                .add_condition_with_duration(*condition, source.clone(), *duration_rounds);
         }
         Effect::ConditionRemoved { condition, .. } => {
             world
