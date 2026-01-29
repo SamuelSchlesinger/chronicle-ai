@@ -10,9 +10,7 @@
 //! independent of AI decision-making.
 
 use crate::dice::{self, Advantage, DiceExpression, RollResult};
-use crate::world::{
-    Ability, ActiveCondition, CharacterId, Combatant, Condition, GameWorld, Skill,
-};
+use crate::world::{Ability, ActiveCondition, CharacterId, Combatant, Condition, GameWorld, Item, ItemType, Skill};
 use serde::{Deserialize, Serialize};
 
 /// An intent represents what a character wants to do.
@@ -105,9 +103,7 @@ pub enum Intent {
     LongRest,
 
     /// Start combat
-    StartCombat {
-        combatants: Vec<CombatantInit>,
-    },
+    StartCombat { combatants: Vec<CombatantInit> },
 
     /// End combat
     EndCombat,
@@ -124,20 +120,13 @@ pub enum Intent {
     },
 
     /// Generic dice roll (not tied to a specific mechanic)
-    RollDice {
-        notation: String,
-        purpose: String,
-    },
+    RollDice { notation: String, purpose: String },
 
     /// Advance game time
-    AdvanceTime {
-        minutes: u32,
-    },
+    AdvanceTime { minutes: u32 },
 
     /// Add experience points
-    GainExperience {
-        amount: u32,
-    },
+    GainExperience { amount: u32 },
 
     /// Use a class feature
     UseFeature {
@@ -153,6 +142,46 @@ pub enum Intent {
         category: String,
         related_entities: Vec<String>,
         importance: f32,
+    },
+
+    // Inventory management
+    /// Add an item to the player's inventory
+    AddItem {
+        item_name: String,
+        quantity: u32,
+        item_type: Option<String>,
+        description: Option<String>,
+        magical: bool,
+        weight: Option<f32>,
+        value_gp: Option<f32>,
+    },
+
+    /// Remove an item from the player's inventory
+    RemoveItem { item_name: String, quantity: u32 },
+
+    /// Equip an item from inventory
+    EquipItem { item_name: String },
+
+    /// Unequip an item from a slot
+    UnequipItem { slot: String },
+
+    /// Use a consumable item
+    UseItem {
+        item_name: String,
+        target_id: Option<CharacterId>,
+    },
+
+    /// Adjust the player's gold
+    AdjustGold { amount: f32, reason: String },
+
+    /// Make a death saving throw (when at 0 HP)
+    DeathSave { character_id: CharacterId },
+
+    /// Make a concentration check (when taking damage while concentrating)
+    ConcentrationCheck {
+        character_id: CharacterId,
+        damage_taken: i32,
+        spell_name: String,
     },
 }
 
@@ -236,10 +265,7 @@ impl Resolution {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Effect {
     /// A dice roll occurred
-    DiceRolled {
-        roll: RollResult,
-        purpose: String,
-    },
+    DiceRolled { roll: RollResult, purpose: String },
 
     /// HP changed (damage or healing)
     HpChanged {
@@ -294,20 +320,13 @@ pub enum Effect {
     },
 
     /// Time advanced
-    TimeAdvanced {
-        minutes: u32,
-    },
+    TimeAdvanced { minutes: u32 },
 
     /// Experience gained
-    ExperienceGained {
-        amount: u32,
-        new_total: u32,
-    },
+    ExperienceGained { amount: u32, new_total: u32 },
 
     /// Level up occurred
-    LevelUp {
-        new_level: u8,
-    },
+    LevelUp { new_level: u8 },
 
     /// Feature use consumed
     FeatureUsed {
@@ -316,15 +335,10 @@ pub enum Effect {
     },
 
     /// Spell slot consumed
-    SpellSlotUsed {
-        level: u8,
-        remaining: u8,
-    },
+    SpellSlotUsed { level: u8, remaining: u8 },
 
     /// Rest completed
-    RestCompleted {
-        rest_type: RestType,
-    },
+    RestCompleted { rest_type: RestType },
 
     /// A check succeeded
     CheckSucceeded {
@@ -366,6 +380,84 @@ pub enum Effect {
         related_entities: Vec<String>,
         importance: f32,
     },
+
+    // Inventory effects
+    /// An item was added to inventory
+    ItemAdded {
+        item_name: String,
+        quantity: u32,
+        new_total: u32,
+    },
+
+    /// An item was removed from inventory
+    ItemRemoved {
+        item_name: String,
+        quantity: u32,
+        remaining: u32,
+    },
+
+    /// An item was equipped
+    ItemEquipped { item_name: String, slot: String },
+
+    /// An item was unequipped
+    ItemUnequipped { item_name: String, slot: String },
+
+    /// An item was used (consumable)
+    ItemUsed { item_name: String, result: String },
+
+    /// Gold was added or removed
+    GoldChanged {
+        amount: f32,
+        new_total: f32,
+        reason: String,
+    },
+
+    /// AC was recalculated due to equipment change
+    AcChanged { new_ac: u8, source: String },
+
+    /// Death save failure (damage while at 0 HP)
+    DeathSaveFailure {
+        target_id: CharacterId,
+        failures: u8,
+        total_failures: u8,
+        source: String,
+    },
+
+    /// Death saves were reset (healed from 0 HP)
+    DeathSavesReset { target_id: CharacterId },
+
+    /// Character died (3 death save failures or massive damage)
+    CharacterDied {
+        target_id: CharacterId,
+        cause: String,
+    },
+
+    /// Death save success (from rolling)
+    DeathSaveSuccess {
+        target_id: CharacterId,
+        roll: i32,
+        total_successes: u8,
+    },
+
+    /// Character stabilized (3 death save successes)
+    Stabilized { target_id: CharacterId },
+
+    /// Concentration was broken
+    ConcentrationBroken {
+        character_id: CharacterId,
+        spell_name: String,
+        damage_taken: i32,
+        roll: i32,
+        dc: i32,
+    },
+
+    /// Concentration was maintained
+    ConcentrationMaintained {
+        character_id: CharacterId,
+        spell_name: String,
+        roll: i32,
+        dc: i32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -385,46 +477,81 @@ impl RulesEngine {
     /// Resolve an intent and produce effects.
     pub fn resolve(&self, world: &GameWorld, intent: Intent) -> Resolution {
         match intent {
-            Intent::Attack { attacker_id, target_id, weapon_name, advantage } => {
-                self.resolve_attack(world, attacker_id, target_id, &weapon_name, advantage)
-            }
-            Intent::SkillCheck { character_id, skill, dc, advantage, description } => {
-                self.resolve_skill_check(world, character_id, skill, dc, advantage, &description)
-            }
-            Intent::AbilityCheck { character_id, ability, dc, advantage, description } => {
-                self.resolve_ability_check(world, character_id, ability, dc, advantage, &description)
-            }
-            Intent::SavingThrow { character_id, ability, dc, advantage, source } => {
-                self.resolve_saving_throw(world, character_id, ability, dc, advantage, &source)
-            }
-            Intent::Damage { target_id, amount, damage_type, source } => {
-                self.resolve_damage(world, target_id, amount, damage_type, &source)
-            }
-            Intent::Heal { target_id, amount, source } => {
-                self.resolve_heal(world, target_id, amount, &source)
-            }
-            Intent::ApplyCondition { target_id, condition, source, duration_rounds } => {
+            Intent::Attack {
+                attacker_id,
+                target_id,
+                weapon_name,
+                advantage,
+            } => self.resolve_attack(world, attacker_id, target_id, &weapon_name, advantage),
+            Intent::SkillCheck {
+                character_id,
+                skill,
+                dc,
+                advantage,
+                description,
+            } => self.resolve_skill_check(world, character_id, skill, dc, advantage, &description),
+            Intent::AbilityCheck {
+                character_id,
+                ability,
+                dc,
+                advantage,
+                description,
+            } => self.resolve_ability_check(
+                world,
+                character_id,
+                ability,
+                dc,
+                advantage,
+                &description,
+            ),
+            Intent::SavingThrow {
+                character_id,
+                ability,
+                dc,
+                advantage,
+                source,
+            } => self.resolve_saving_throw(world, character_id, ability, dc, advantage, &source),
+            Intent::Damage {
+                target_id,
+                amount,
+                damage_type,
+                source,
+            } => self.resolve_damage(world, target_id, amount, damage_type, &source),
+            Intent::Heal {
+                target_id,
+                amount,
+                source,
+            } => self.resolve_heal(world, target_id, amount, &source),
+            Intent::ApplyCondition {
+                target_id,
+                condition,
+                source,
+                duration_rounds,
+            } => {
                 self.resolve_apply_condition(world, target_id, condition, &source, duration_rounds)
             }
-            Intent::RemoveCondition { target_id, condition } => {
-                self.resolve_remove_condition(world, target_id, condition)
-            }
+            Intent::RemoveCondition {
+                target_id,
+                condition,
+            } => self.resolve_remove_condition(world, target_id, condition),
             Intent::ShortRest => self.resolve_short_rest(world),
             Intent::LongRest => self.resolve_long_rest(world),
             Intent::StartCombat { combatants } => self.resolve_start_combat(world, combatants),
             Intent::EndCombat => self.resolve_end_combat(world),
             Intent::NextTurn => self.resolve_next_turn(world),
-            Intent::RollInitiative { character_id, name, modifier, is_player } => {
-                self.resolve_roll_initiative(character_id, &name, modifier, is_player)
-            }
-            Intent::RollDice { notation, purpose } => {
-                self.resolve_roll_dice(&notation, &purpose)
-            }
+            Intent::RollInitiative {
+                character_id,
+                name,
+                modifier,
+                is_player,
+            } => self.resolve_roll_initiative(character_id, &name, modifier, is_player),
+            Intent::RollDice { notation, purpose } => self.resolve_roll_dice(&notation, &purpose),
             Intent::AdvanceTime { minutes } => self.resolve_advance_time(minutes),
             Intent::GainExperience { amount } => self.resolve_gain_experience(world, amount),
-            Intent::UseFeature { character_id, feature_name } => {
-                self.resolve_use_feature(world, character_id, &feature_name)
-            }
+            Intent::UseFeature {
+                character_id,
+                feature_name,
+            } => self.resolve_use_feature(world, character_id, &feature_name),
             Intent::RememberFact {
                 subject_name,
                 subject_type,
@@ -440,6 +567,44 @@ impl RulesEngine {
                 &related_entities,
                 importance,
             ),
+            // Inventory intents
+            Intent::AddItem {
+                item_name,
+                quantity,
+                item_type,
+                description,
+                magical,
+                weight,
+                value_gp,
+            } => self.resolve_add_item(
+                world,
+                &item_name,
+                quantity,
+                item_type.as_deref(),
+                description.as_deref(),
+                magical,
+                weight,
+                value_gp,
+            ),
+            Intent::RemoveItem {
+                item_name,
+                quantity,
+            } => self.resolve_remove_item(world, &item_name, quantity),
+            Intent::EquipItem { item_name } => self.resolve_equip_item(world, &item_name),
+            Intent::UnequipItem { slot } => self.resolve_unequip_item(world, &slot),
+            Intent::UseItem {
+                item_name,
+                target_id,
+            } => self.resolve_use_item(world, &item_name, target_id),
+            Intent::AdjustGold { amount, reason } => {
+                self.resolve_adjust_gold(world, amount, &reason)
+            }
+            Intent::DeathSave { character_id } => self.resolve_death_save(world, character_id),
+            Intent::ConcentrationCheck {
+                character_id,
+                damage_taken,
+                spell_name,
+            } => self.resolve_concentration_check(world, character_id, damage_taken, &spell_name),
             #[allow(unreachable_patterns)]
             _ => Resolution::new("Intent not yet implemented"),
         }
@@ -454,10 +619,47 @@ impl RulesEngine {
         advantage: Advantage,
     ) -> Resolution {
         let attacker = &world.player_character;
+
+        // Unconscious characters cannot attack
+        if attacker.has_condition(Condition::Unconscious) {
+            return Resolution::new(format!(
+                "{} is unconscious and cannot attack!",
+                attacker.name
+            ));
+        }
+
         let target_ac = 15; // TODO: Get from target
 
-        // Roll attack
-        let attack_mod = attacker.ability_scores.modifier(Ability::Strength) + attacker.proficiency_bonus();
+        // Look up weapon from database or equipped weapon
+        let weapon = crate::items::get_weapon(weapon_name);
+        let equipped_weapon = attacker.equipment.main_hand.as_ref();
+
+        // Determine the weapon properties
+        let (damage_dice, is_finesse, is_ranged) = if let Some(w) = &weapon {
+            (w.damage_dice.clone(), w.is_finesse(), w.is_ranged())
+        } else if let Some(w) = equipped_weapon {
+            (w.damage_dice.clone(), w.is_finesse(), w.is_ranged())
+        } else {
+            // Default to unarmed strike
+            ("1".to_string(), false, false)
+        };
+
+        // Determine which ability modifier to use
+        // Ranged: DEX only
+        // Finesse: higher of STR or DEX
+        // Melee: STR only
+        let str_mod = attacker.ability_scores.modifier(Ability::Strength);
+        let dex_mod = attacker.ability_scores.modifier(Ability::Dexterity);
+
+        let ability_mod = if is_ranged {
+            dex_mod
+        } else if is_finesse {
+            str_mod.max(dex_mod)
+        } else {
+            str_mod
+        };
+
+        let attack_mod = ability_mod + attacker.proficiency_bonus();
         let attack_expr = DiceExpression::parse(&format!("1d20+{attack_mod}")).unwrap();
         let attack_roll = attack_expr.roll_with_advantage(advantage);
 
@@ -471,7 +673,11 @@ impl RulesEngine {
             purpose: format!("Attack with {weapon_name}"),
         });
 
-        if attack_roll.total >= target_ac as i32 || attack_roll.is_critical() {
+        // Natural 1 always misses, natural 20 always hits (and crits)
+        let hits = !attack_roll.is_fumble()
+            && (attack_roll.total >= target_ac as i32 || attack_roll.is_critical());
+
+        if hits {
             resolution = resolution.with_effect(Effect::AttackHit {
                 attacker_name: attacker.name.clone(),
                 target_name: "target".to_string(),
@@ -480,9 +686,24 @@ impl RulesEngine {
                 is_critical: attack_roll.is_critical(),
             });
 
-            // Roll damage
-            let damage_dice = if attack_roll.is_critical() { "2d8+3" } else { "1d8+3" };
-            let damage_roll = dice::roll(damage_dice).unwrap();
+            // Roll damage with ability modifier
+            let damage_expr = if attack_roll.is_critical() {
+                // Critical hit: double the number of dice
+                // Parse "XdY" and produce "2XdY"
+                let doubled_dice = if let Some(d_pos) = damage_dice.find('d') {
+                    let num_dice: i32 = damage_dice[..d_pos].parse().unwrap_or(1);
+                    let die_type = &damage_dice[d_pos..];
+                    format!("{}{}", num_dice * 2, die_type)
+                } else {
+                    // Not a dice expression, just double the flat value
+                    let flat: i32 = damage_dice.parse().unwrap_or(1);
+                    format!("{}", flat * 2)
+                };
+                format!("{}+{}", doubled_dice, ability_mod)
+            } else {
+                format!("{}+{}", damage_dice, ability_mod)
+            };
+            let damage_roll = dice::roll(&damage_expr).unwrap_or_else(|_| dice::roll("1d4").unwrap());
             resolution = resolution.with_effect(Effect::DiceRolled {
                 roll: damage_roll.clone(),
                 purpose: "Damage".to_string(),
@@ -509,17 +730,66 @@ impl RulesEngine {
         description: &str,
     ) -> Resolution {
         let character = &world.player_character;
+
+        // Unconscious characters automatically fail Strength and Dexterity checks
+        if character.has_condition(Condition::Unconscious) {
+            let ability = skill.ability();
+            if matches!(ability, Ability::Strength | Ability::Dexterity) {
+                return Resolution::new(format!(
+                    "{} is unconscious and automatically fails the {} check!",
+                    character.name,
+                    skill.name()
+                ))
+                .with_effect(Effect::CheckFailed {
+                    check_type: skill.name().to_string(),
+                    roll: 0,
+                    dc,
+                });
+            }
+        }
+
         let modifier = character.skill_modifier(skill);
 
+        // Check for armor-imposed stealth disadvantage
+        let effective_advantage = if skill == Skill::Stealth {
+            if let Some(ref armor) = character.equipment.armor {
+                if armor.stealth_disadvantage {
+                    // Armor imposes disadvantage on Stealth
+                    advantage.combine(Advantage::Disadvantage)
+                } else {
+                    advantage
+                }
+            } else {
+                advantage
+            }
+        } else {
+            advantage
+        };
+
         let expr = DiceExpression::parse(&format!("1d20+{modifier}")).unwrap();
-        let roll = expr.roll_with_advantage(advantage);
+        let roll = expr.roll_with_advantage(effective_advantage);
 
         let success = roll.total >= dc;
         let result_str = if success { "succeeds" } else { "fails" };
 
+        // Note if stealth disadvantage was applied
+        let disadvantage_note = if skill == Skill::Stealth
+            && effective_advantage != advantage
+            && matches!(effective_advantage, Advantage::Disadvantage)
+        {
+            " [armor disadvantage]"
+        } else {
+            ""
+        };
+
         let mut resolution = Resolution::new(format!(
-            "{} {} ({} check: {} vs DC {})",
-            character.name, result_str, skill.name(), roll.total, dc
+            "{} {} ({} check: {} vs DC {}){}",
+            character.name,
+            result_str,
+            skill.name(),
+            roll.total,
+            dc,
+            disadvantage_note
         ));
 
         resolution = resolution.with_effect(Effect::DiceRolled {
@@ -554,6 +824,23 @@ impl RulesEngine {
         description: &str,
     ) -> Resolution {
         let character = &world.player_character;
+
+        // Unconscious characters automatically fail Strength and Dexterity checks
+        if character.has_condition(Condition::Unconscious) {
+            if matches!(ability, Ability::Strength | Ability::Dexterity) {
+                return Resolution::new(format!(
+                    "{} is unconscious and automatically fails the {} check!",
+                    character.name,
+                    ability.abbreviation()
+                ))
+                .with_effect(Effect::CheckFailed {
+                    check_type: format!("{} check", ability.abbreviation()),
+                    roll: 0,
+                    dc,
+                });
+            }
+        }
+
         let modifier = character.ability_scores.modifier(ability);
 
         let expr = DiceExpression::parse(&format!("1d20+{modifier}")).unwrap();
@@ -564,7 +851,11 @@ impl RulesEngine {
 
         let mut resolution = Resolution::new(format!(
             "{} {} ({} check: {} vs DC {})",
-            character.name, result_str, ability.abbreviation(), roll.total, dc
+            character.name,
+            result_str,
+            ability.abbreviation(),
+            roll.total,
+            dc
         ));
 
         resolution = resolution.with_effect(Effect::DiceRolled {
@@ -597,6 +888,23 @@ impl RulesEngine {
         source: &str,
     ) -> Resolution {
         let character = &world.player_character;
+
+        // Unconscious characters automatically fail Strength and Dexterity saving throws
+        if character.has_condition(Condition::Unconscious) {
+            if matches!(ability, Ability::Strength | Ability::Dexterity) {
+                return Resolution::new(format!(
+                    "{} is unconscious and automatically fails the {} saving throw!",
+                    character.name,
+                    ability.abbreviation()
+                ))
+                .with_effect(Effect::CheckFailed {
+                    check_type: format!("{} save", ability.abbreviation()),
+                    roll: 0,
+                    dc,
+                });
+            }
+        }
+
         let modifier = character.saving_throw_modifier(ability);
 
         let expr = DiceExpression::parse(&format!("1d20+{modifier}")).unwrap();
@@ -607,7 +915,11 @@ impl RulesEngine {
 
         let mut resolution = Resolution::new(format!(
             "{} {} on {} saving throw ({} vs DC {})",
-            character.name, result_str, ability.abbreviation(), roll.total, dc
+            character.name,
+            result_str,
+            ability.abbreviation(),
+            roll.total,
+            dc
         ));
 
         resolution = resolution.with_effect(Effect::DiceRolled {
@@ -639,12 +951,78 @@ impl RulesEngine {
         source: &str,
     ) -> Resolution {
         let target = &world.player_character;
+
+        // Special handling for damage while already at 0 HP
+        if target.hit_points.current <= 0 {
+            // Massive damage while at 0 HP = instant death
+            if amount >= target.hit_points.maximum {
+                return Resolution::new(format!(
+                    "{} takes {} {} damage from {} while unconscious - INSTANT DEATH! (Damage {} >= max HP {})",
+                    target.name, amount, damage_type.name(), source, amount, target.hit_points.maximum
+                ))
+                .with_effect(Effect::CharacterDied {
+                    target_id,
+                    cause: format!("Massive damage while unconscious from {}", source),
+                });
+            }
+
+            // Damage while at 0 HP causes death save failures
+            // (Critical hits cause 2 failures, but we don't know if this was a crit here)
+            let new_failures = target.death_saves.failures + 1;
+            let died = new_failures >= 3;
+
+            if died {
+                return Resolution::new(format!(
+                    "{} takes {} {} damage from {} while unconscious - death save failure! Total failures: 3 - {} DIES!",
+                    target.name, amount, damage_type.name(), source, target.name
+                ))
+                .with_effect(Effect::DeathSaveFailure {
+                    target_id,
+                    failures: 1,
+                    total_failures: new_failures,
+                    source: source.to_string(),
+                })
+                .with_effect(Effect::CharacterDied {
+                    target_id,
+                    cause: "Failed 3 death saving throws".to_string(),
+                });
+            }
+
+            return Resolution::new(format!(
+                "{} takes {} {} damage from {} while unconscious - death save failure! (Failures: {}/3)",
+                target.name, amount, damage_type.name(), source, new_failures
+            ))
+            .with_effect(Effect::DeathSaveFailure {
+                target_id,
+                failures: 1,
+                total_failures: new_failures,
+                source: source.to_string(),
+            });
+        }
+
         let mut hp = target.hit_points.clone();
         let result = hp.take_damage(amount);
 
+        // Check for massive damage (instant death)
+        // If damage reduces you to 0 HP AND remaining damage >= max HP, instant death
+        let overflow_damage = if result.dropped_to_zero {
+            amount - (target.hit_points.current + target.hit_points.temporary)
+        } else {
+            0
+        };
+        let instant_death = result.dropped_to_zero && overflow_damage >= hp.maximum;
+
         // Build narrative with HP status so DM knows the character's state
-        let hp_status = if result.dropped_to_zero {
-            format!(" (HP: 0/{} - UNCONSCIOUS! Character falls and begins making death saving throws)", hp.maximum)
+        let hp_status = if instant_death {
+            format!(
+                " (INSTANT DEATH! Massive damage ({} overflow) exceeds max HP of {})",
+                overflow_damage, hp.maximum
+            )
+        } else if result.dropped_to_zero {
+            format!(
+                " (HP: 0/{} - UNCONSCIOUS! Character falls and begins making death saving throws)",
+                hp.maximum
+            )
         } else if hp.current <= hp.maximum / 4 {
             format!(" (HP: {}/{} - critically wounded)", hp.current, hp.maximum)
         } else if hp.current <= hp.maximum / 2 {
@@ -653,18 +1031,31 @@ impl RulesEngine {
             format!(" (HP: {}/{})", hp.current, hp.maximum)
         };
 
-        let resolution = Resolution::new(format!(
+        let mut resolution = Resolution::new(format!(
             "{} takes {} {} damage from {}{}",
-            target.name, amount, damage_type.name(), source, hp_status
+            target.name,
+            amount,
+            damage_type.name(),
+            source,
+            hp_status
         ));
 
-        resolution.with_effect(Effect::HpChanged {
+        resolution = resolution.with_effect(Effect::HpChanged {
             target_id,
             amount: -amount,
             new_current: hp.current,
             new_max: hp.maximum,
             dropped_to_zero: result.dropped_to_zero,
-        })
+        });
+
+        if instant_death {
+            resolution = resolution.with_effect(Effect::CharacterDied {
+                target_id,
+                cause: format!("Massive damage from {}", source),
+            });
+        }
+
+        resolution
     }
 
     fn resolve_heal(
@@ -681,7 +1072,10 @@ impl RulesEngine {
 
         // Build narrative with HP status
         let hp_status = if was_unconscious && hp.current > 0 {
-            format!(" (HP: {}/{} - regains consciousness!)", hp.current, hp.maximum)
+            format!(
+                " (HP: {}/{} - regains consciousness!)",
+                hp.current, hp.maximum
+            )
         } else if hp.current == hp.maximum {
             format!(" (HP: {}/{} - fully healed)", hp.current, hp.maximum)
         } else {
@@ -714,7 +1108,9 @@ impl RulesEngine {
 
         let resolution = Resolution::new(format!(
             "{} is now {} ({})",
-            target.name, condition.name(), source
+            target.name,
+            condition.name(),
+            source
         ));
 
         resolution.with_effect(Effect::ConditionApplied {
@@ -732,27 +1128,46 @@ impl RulesEngine {
     ) -> Resolution {
         let target = &world.player_character;
 
-        let resolution = Resolution::new(format!(
-            "{} is no longer {}",
-            target.name, condition.name()
-        ));
+        let resolution =
+            Resolution::new(format!("{} is no longer {}", target.name, condition.name()));
 
-        resolution.with_effect(Effect::ConditionRemoved { target_id, condition })
+        resolution.with_effect(Effect::ConditionRemoved {
+            target_id,
+            condition,
+        })
     }
 
-    fn resolve_short_rest(&self, _world: &GameWorld) -> Resolution {
+    fn resolve_short_rest(&self, world: &GameWorld) -> Resolution {
+        // Can't rest during combat
+        if world.combat.is_some() {
+            return Resolution::new("Cannot take a short rest while in combat!");
+        }
+
         Resolution::new("The party takes a short rest, spending 1 hour resting.")
             .with_effect(Effect::TimeAdvanced { minutes: 60 })
-            .with_effect(Effect::RestCompleted { rest_type: RestType::Short })
+            .with_effect(Effect::RestCompleted {
+                rest_type: RestType::Short,
+            })
     }
 
-    fn resolve_long_rest(&self, _world: &GameWorld) -> Resolution {
+    fn resolve_long_rest(&self, world: &GameWorld) -> Resolution {
+        // Can't rest during combat
+        if world.combat.is_some() {
+            return Resolution::new("Cannot take a long rest while in combat!");
+        }
+
         Resolution::new("The party takes a long rest, spending 8 hours resting.")
             .with_effect(Effect::TimeAdvanced { minutes: 480 })
-            .with_effect(Effect::RestCompleted { rest_type: RestType::Long })
+            .with_effect(Effect::RestCompleted {
+                rest_type: RestType::Long,
+            })
     }
 
-    fn resolve_start_combat(&self, world: &GameWorld, combatants: Vec<CombatantInit>) -> Resolution {
+    fn resolve_start_combat(
+        &self,
+        world: &GameWorld,
+        combatants: Vec<CombatantInit>,
+    ) -> Resolution {
         let mut resolution = Resolution::new("Combat begins! Roll for initiative.")
             .with_effect(Effect::CombatStarted);
 
@@ -788,8 +1203,7 @@ impl RulesEngine {
     }
 
     fn resolve_end_combat(&self, _world: &GameWorld) -> Resolution {
-        Resolution::new("Combat ends.")
-            .with_effect(Effect::CombatEnded)
+        Resolution::new("Combat ends.").with_effect(Effect::CombatEnded)
     }
 
     fn resolve_next_turn(&self, world: &GameWorld) -> Resolution {
@@ -797,15 +1211,19 @@ impl RulesEngine {
             let mut combat_clone = combat.clone();
             combat_clone.next_turn();
 
-            let current = combat_clone.current_combatant()
+            let current = combat_clone
+                .current_combatant()
                 .map(|c| c.name.clone())
                 .unwrap_or_else(|| "Unknown".to_string());
 
-            Resolution::new(format!("Next turn: {} (Round {})", current, combat_clone.round))
-                .with_effect(Effect::TurnAdvanced {
-                    round: combat_clone.round,
-                    current_combatant: current,
-                })
+            Resolution::new(format!(
+                "Next turn: {} (Round {})",
+                current, combat_clone.round
+            ))
+            .with_effect(Effect::TurnAdvanced {
+                round: combat_clone.round,
+                current_combatant: current,
+            })
         } else {
             Resolution::new("No combat in progress")
         }
@@ -821,28 +1239,29 @@ impl RulesEngine {
         let roll = dice::roll("1d20").unwrap();
         let total = roll.total + modifier as i32;
 
-        Resolution::new(format!("{} rolls initiative: {} + {} = {}", name, roll.total, modifier, total))
-            .with_effect(Effect::DiceRolled {
-                roll: roll.clone(),
-                purpose: "Initiative".to_string(),
-            })
-            .with_effect(Effect::InitiativeRolled {
-                character_id,
-                name: name.to_string(),
-                roll: roll.total,
-                total,
-            })
+        Resolution::new(format!(
+            "{} rolls initiative: {} + {} = {}",
+            name, roll.total, modifier, total
+        ))
+        .with_effect(Effect::DiceRolled {
+            roll: roll.clone(),
+            purpose: "Initiative".to_string(),
+        })
+        .with_effect(Effect::InitiativeRolled {
+            character_id,
+            name: name.to_string(),
+            roll: roll.total,
+            total,
+        })
     }
 
     fn resolve_roll_dice(&self, notation: &str, purpose: &str) -> Resolution {
         match dice::roll(notation) {
-            Ok(roll) => {
-                Resolution::new(format!("Rolling {notation} for {purpose}: {roll}"))
-                    .with_effect(Effect::DiceRolled {
-                        roll,
-                        purpose: purpose.to_string(),
-                    })
-            }
+            Ok(roll) => Resolution::new(format!("Rolling {notation} for {purpose}: {roll}"))
+                .with_effect(Effect::DiceRolled {
+                    roll,
+                    purpose: purpose.to_string(),
+                }),
             Err(e) => Resolution::new(format!("Failed to roll {notation}: {e}")),
         }
     }
@@ -859,8 +1278,7 @@ impl RulesEngine {
             format!("{mins} minutes")
         };
 
-        Resolution::new(format!("{time_str} pass."))
-            .with_effect(Effect::TimeAdvanced { minutes })
+        Resolution::new(format!("{time_str} pass.")).with_effect(Effect::TimeAdvanced { minutes })
     }
 
     fn resolve_gain_experience(&self, world: &GameWorld, amount: u32) -> Resolution {
@@ -869,11 +1287,12 @@ impl RulesEngine {
 
         // XP thresholds for levels 1-20
         let xp_thresholds = [
-            0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000,
-            85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000,
+            0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000,
+            140000, 165000, 195000, 225000, 265000, 305000, 355000,
         ];
 
-        let new_level = xp_thresholds.iter()
+        let new_level = xp_thresholds
+            .iter()
             .rposition(|&threshold| new_total >= threshold)
             .map(|idx| (idx + 1) as u8)
             .unwrap_or(1);
@@ -882,10 +1301,7 @@ impl RulesEngine {
             "Gained {amount} experience points (Total: {new_total})"
         ));
 
-        resolution = resolution.with_effect(Effect::ExperienceGained {
-            amount,
-            new_total,
-        });
+        resolution = resolution.with_effect(Effect::ExperienceGained { amount, new_total });
 
         if new_level > current_level {
             resolution = resolution.with_effect(Effect::LevelUp { new_level });
@@ -905,20 +1321,30 @@ impl RulesEngine {
         if let Some(feature) = character.features.iter().find(|f| f.name == feature_name) {
             if let Some(ref uses) = feature.uses {
                 if uses.current > 0 {
-                    Resolution::new(format!("{} uses {} ({} uses remaining)",
-                        character.name, feature_name, uses.current - 1))
-                        .with_effect(Effect::FeatureUsed {
-                            feature_name: feature_name.to_string(),
-                            uses_remaining: uses.current - 1,
-                        })
+                    Resolution::new(format!(
+                        "{} uses {} ({} uses remaining)",
+                        character.name,
+                        feature_name,
+                        uses.current - 1
+                    ))
+                    .with_effect(Effect::FeatureUsed {
+                        feature_name: feature_name.to_string(),
+                        uses_remaining: uses.current - 1,
+                    })
                 } else {
-                    Resolution::new(format!("{} has no uses of {} remaining", character.name, feature_name))
+                    Resolution::new(format!(
+                        "{} has no uses of {} remaining",
+                        character.name, feature_name
+                    ))
                 }
             } else {
                 Resolution::new(format!("{} uses {}", character.name, feature_name))
             }
         } else {
-            Resolution::new(format!("{} does not have the feature {}", character.name, feature_name))
+            Resolution::new(format!(
+                "{} does not have the feature {}",
+                character.name, feature_name
+            ))
         }
     }
 
@@ -951,6 +1377,511 @@ impl RulesEngine {
             importance,
         })
     }
+
+    // Inventory resolution methods
+
+    #[allow(clippy::too_many_arguments)]
+    fn resolve_add_item(
+        &self,
+        world: &GameWorld,
+        item_name: &str,
+        quantity: u32,
+        _item_type: Option<&str>,
+        _description: Option<&str>,
+        _magical: bool,
+        _weight: Option<f32>,
+        _value_gp: Option<f32>,
+    ) -> Resolution {
+        let character = &world.player_character;
+
+        // Check if item already exists
+        let existing_qty = character
+            .inventory
+            .find_item(item_name)
+            .map(|i| i.quantity)
+            .unwrap_or(0);
+        let new_total = existing_qty + quantity;
+
+        // Note: item_type, description, magical, weight, value_gp are passed through
+        // but the actual item creation happens in apply_effect or could be enhanced
+        // to look up standard items from the items database.
+
+        let qty_str = if quantity > 1 {
+            format!("{quantity} x ")
+        } else {
+            String::new()
+        };
+
+        Resolution::new(format!(
+            "{} receives {}{} (now has {} total)",
+            character.name, qty_str, item_name, new_total
+        ))
+        .with_effect(Effect::ItemAdded {
+            item_name: item_name.to_string(),
+            quantity,
+            new_total,
+        })
+    }
+
+    fn resolve_remove_item(
+        &self,
+        world: &GameWorld,
+        item_name: &str,
+        quantity: u32,
+    ) -> Resolution {
+        let character = &world.player_character;
+
+        if let Some(item) = character.inventory.find_item(item_name) {
+            if item.quantity >= quantity {
+                let remaining = item.quantity - quantity;
+                let qty_str = if quantity > 1 {
+                    format!("{quantity} x ")
+                } else {
+                    String::new()
+                };
+                Resolution::new(format!(
+                    "{} loses {}{} ({} remaining)",
+                    character.name, qty_str, item_name, remaining
+                ))
+                .with_effect(Effect::ItemRemoved {
+                    item_name: item_name.to_string(),
+                    quantity,
+                    remaining,
+                })
+            } else {
+                Resolution::new(format!(
+                    "{} doesn't have enough {} (has {}, needs {})",
+                    character.name, item_name, item.quantity, quantity
+                ))
+            }
+        } else {
+            Resolution::new(format!(
+                "{} doesn't have any {}",
+                character.name, item_name
+            ))
+        }
+    }
+
+    fn resolve_equip_item(&self, world: &GameWorld, item_name: &str) -> Resolution {
+        let character = &world.player_character;
+
+        if let Some(item) = character.inventory.find_item(item_name) {
+            let slot = match item.item_type {
+                ItemType::Weapon => "main_hand",
+                ItemType::Armor => "armor",
+                ItemType::Shield => "shield",
+                _ => {
+                    return Resolution::new(format!(
+                        "{item_name} cannot be equipped (not a weapon, armor, or shield)"
+                    ));
+                }
+            };
+
+            // Check for two-handed weapon + shield conflict
+            if slot == "shield" {
+                if let Some(ref weapon) = character.equipment.main_hand {
+                    if weapon.is_two_handed() {
+                        return Resolution::new(format!(
+                            "Cannot equip {} - {} requires two hands",
+                            item_name, weapon.base.name
+                        ));
+                    }
+                }
+            }
+
+            // Check for shield + two-handed weapon conflict
+            if slot == "main_hand" {
+                if let Some(db_weapon) = crate::items::get_weapon(item_name) {
+                    if db_weapon.is_two_handed() && character.equipment.shield.is_some() {
+                        return Resolution::new(format!(
+                            "Cannot equip {} - it requires two hands but a shield is equipped. Unequip the shield first.",
+                            item_name
+                        ));
+                    }
+                }
+            }
+
+            // Check strength requirement for heavy armor
+            if slot == "armor" {
+                if let Some(db_armor) = crate::items::get_armor(item_name) {
+                    if let Some(str_req) = db_armor.strength_requirement {
+                        let char_str = character.ability_scores.strength;
+                        if char_str < str_req {
+                            return Resolution::new(format!(
+                                "{} equips {} but doesn't meet the Strength {} requirement (has {}). Movement speed reduced by 10 feet.",
+                                character.name, item_name, str_req, char_str
+                            ))
+                            .with_effect(Effect::ItemEquipped {
+                                item_name: item_name.to_string(),
+                                slot: slot.to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+
+            Resolution::new(format!(
+                "{} equips {} in {} slot",
+                character.name, item_name, slot
+            ))
+            .with_effect(Effect::ItemEquipped {
+                item_name: item_name.to_string(),
+                slot: slot.to_string(),
+            })
+        } else {
+            Resolution::new(format!(
+                "{} doesn't have {} in their inventory",
+                character.name, item_name
+            ))
+        }
+    }
+
+    fn resolve_unequip_item(&self, world: &GameWorld, slot: &str) -> Resolution {
+        let character = &world.player_character;
+
+        let item_name = match slot.to_lowercase().as_str() {
+            "armor" => character.equipment.armor.as_ref().map(|a| a.base.name.clone()),
+            "shield" => character.equipment.shield.as_ref().map(|s| s.name.clone()),
+            "main_hand" | "weapon" => character.equipment.main_hand.as_ref().map(|w| w.base.name.clone()),
+            "off_hand" => character.equipment.off_hand.as_ref().map(|i| i.name.clone()),
+            _ => {
+                return Resolution::new(format!(
+                    "Unknown equipment slot: {}. Valid slots: armor, shield, main_hand, off_hand",
+                    slot
+                ));
+            }
+        };
+
+        if let Some(name) = item_name {
+            Resolution::new(format!("{} unequips {}", character.name, name))
+                .with_effect(Effect::ItemUnequipped {
+                    item_name: name,
+                    slot: slot.to_string(),
+                })
+        } else {
+            Resolution::new(format!("Nothing equipped in {} slot", slot))
+        }
+    }
+
+    fn resolve_use_item(
+        &self,
+        world: &GameWorld,
+        item_name: &str,
+        _target_id: Option<CharacterId>,
+    ) -> Resolution {
+        let character = &world.player_character;
+
+        // Unconscious characters cannot use items themselves
+        if character.has_condition(Condition::Unconscious) {
+            return Resolution::new(format!(
+                "{} is unconscious and cannot use items!",
+                character.name
+            ));
+        }
+
+        if let Some(item) = character.inventory.find_item(item_name) {
+            // Check if it's a consumable type
+            match item.item_type {
+                ItemType::Potion => {
+                    // Look up proper healing amount from database, fall back to basic potion
+                    let (dice_expr, bonus) = if let Some(potion) = crate::items::get_potion(item_name) {
+                        match potion.effect {
+                            crate::world::ConsumableEffect::Healing { ref dice, bonus } => {
+                                (dice.clone(), bonus)
+                            }
+                            _ => ("2d4".to_string(), 2),
+                        }
+                    } else {
+                        ("2d4".to_string(), 2) // Default healing potion
+                    };
+
+                    let heal_expr = if bonus != 0 {
+                        format!("{}+{}", dice_expr, bonus)
+                    } else {
+                        dice_expr
+                    };
+                    let heal_roll = dice::roll(&heal_expr).unwrap_or_else(|_| dice::roll("1d4").unwrap());
+
+                    Resolution::new(format!(
+                        "{} drinks {} and heals for {} HP",
+                        character.name, item_name, heal_roll.total
+                    ))
+                    .with_effect(Effect::ItemUsed {
+                        item_name: item_name.to_string(),
+                        result: format!("Healed {} HP", heal_roll.total),
+                    })
+                    .with_effect(Effect::HpChanged {
+                        target_id: character.id,
+                        amount: heal_roll.total,
+                        new_current: (character.hit_points.current + heal_roll.total)
+                            .min(character.hit_points.maximum),
+                        new_max: character.hit_points.maximum,
+                        dropped_to_zero: false,
+                    })
+                    .with_effect(Effect::ItemRemoved {
+                        item_name: item_name.to_string(),
+                        quantity: 1,
+                        remaining: item.quantity.saturating_sub(1),
+                    })
+                }
+                ItemType::Scroll => {
+                    Resolution::new(format!(
+                        "{} reads {} and it crumbles to dust",
+                        character.name, item_name
+                    ))
+                    .with_effect(Effect::ItemUsed {
+                        item_name: item_name.to_string(),
+                        result: "Scroll consumed".to_string(),
+                    })
+                    .with_effect(Effect::ItemRemoved {
+                        item_name: item_name.to_string(),
+                        quantity: 1,
+                        remaining: item.quantity.saturating_sub(1),
+                    })
+                }
+                _ => Resolution::new(format!(
+                    "{} is not a consumable item",
+                    item_name
+                )),
+            }
+        } else {
+            Resolution::new(format!(
+                "{} doesn't have {} in their inventory",
+                character.name, item_name
+            ))
+        }
+    }
+
+    fn resolve_adjust_gold(&self, world: &GameWorld, amount: f32, reason: &str) -> Resolution {
+        let character = &world.player_character;
+        let new_total = character.inventory.gold + amount;
+
+        if new_total < 0.0 {
+            Resolution::new(format!(
+                "{} doesn't have enough gold (has {:.0} gp, needs {:.0} gp)",
+                character.name, character.inventory.gold, -amount
+            ))
+        } else {
+            let action = if amount >= 0.0 { "gains" } else { "spends" };
+            Resolution::new(format!(
+                "{} {} {:.0} gp {} (now has {:.0} gp)",
+                character.name, action, amount.abs(), reason, new_total
+            ))
+            .with_effect(Effect::GoldChanged {
+                amount,
+                new_total,
+                reason: reason.to_string(),
+            })
+        }
+    }
+
+    /// Resolve a death saving throw (D&D 5e rules)
+    /// - Roll d20 (no modifiers by default)
+    /// - 10+ = success, <10 = failure
+    /// - Natural 20 = regain 1 HP and become conscious
+    /// - Natural 1 = counts as 2 failures
+    /// - 3 successes = stable
+    /// - 3 failures = death
+    fn resolve_death_save(&self, world: &GameWorld, character_id: CharacterId) -> Resolution {
+        let character = &world.player_character;
+
+        // Must be at 0 HP to make death saves
+        if character.hit_points.current > 0 {
+            return Resolution::new(format!(
+                "{} is not dying and doesn't need to make a death save.",
+                character.name
+            ));
+        }
+
+        // Roll d20
+        let roll = dice::roll("1d20").unwrap();
+        let roll_value = roll.total;
+
+        // Check for natural 20 - regain 1 HP
+        if roll.is_critical() {
+            return Resolution::new(format!(
+                "{} rolls a NATURAL 20 on their death save! They regain 1 HP and become conscious!",
+                character.name
+            ))
+            .with_effect(Effect::DeathSavesReset { target_id: character_id })
+            .with_effect(Effect::HpChanged {
+                target_id: character_id,
+                amount: 1,
+                new_current: 1,
+                new_max: character.hit_points.maximum,
+                dropped_to_zero: false,
+            })
+            .with_effect(Effect::ConditionRemoved {
+                target_id: character_id,
+                condition: Condition::Unconscious,
+            });
+        }
+
+        // Check for natural 1 - counts as 2 failures
+        if roll.is_fumble() {
+            let new_failures = character.death_saves.failures + 2;
+            if new_failures >= 3 {
+                return Resolution::new(format!(
+                    "{} rolls a NATURAL 1 on their death save! Two failures! {} has died!",
+                    character.name, character.name
+                ))
+                .with_effect(Effect::DeathSaveFailure {
+                    target_id: character_id,
+                    failures: 2,
+                    total_failures: new_failures.min(3),
+                    source: "Natural 1 on death save".to_string(),
+                })
+                .with_effect(Effect::CharacterDied {
+                    target_id: character_id,
+                    cause: "Failed death saves".to_string(),
+                });
+            } else {
+                return Resolution::new(format!(
+                    "{} rolls a NATURAL 1 on their death save! That counts as TWO failures! ({}/3)",
+                    character.name, new_failures
+                ))
+                .with_effect(Effect::DeathSaveFailure {
+                    target_id: character_id,
+                    failures: 2,
+                    total_failures: new_failures,
+                    source: "Natural 1 on death save".to_string(),
+                });
+            }
+        }
+
+        // Normal roll - 10+ is success, <10 is failure
+        if roll_value >= 10 {
+            let new_successes = character.death_saves.successes + 1;
+            if new_successes >= 3 {
+                Resolution::new(format!(
+                    "{} rolls {} on their death save - SUCCESS! With 3 successes, {} is now STABLE!",
+                    character.name, roll_value, character.name
+                ))
+                .with_effect(Effect::DeathSaveSuccess {
+                    target_id: character_id,
+                    roll: roll_value,
+                    total_successes: 3,
+                })
+                .with_effect(Effect::Stabilized { target_id: character_id })
+            } else {
+                Resolution::new(format!(
+                    "{} rolls {} on their death save - SUCCESS! ({}/3 successes)",
+                    character.name, roll_value, new_successes
+                ))
+                .with_effect(Effect::DeathSaveSuccess {
+                    target_id: character_id,
+                    roll: roll_value,
+                    total_successes: new_successes,
+                })
+            }
+        } else {
+            let new_failures = character.death_saves.failures + 1;
+            if new_failures >= 3 {
+                Resolution::new(format!(
+                    "{} rolls {} on their death save - FAILURE! With 3 failures, {} has DIED!",
+                    character.name, roll_value, character.name
+                ))
+                .with_effect(Effect::DeathSaveFailure {
+                    target_id: character_id,
+                    failures: 1,
+                    total_failures: 3,
+                    source: "Death save".to_string(),
+                })
+                .with_effect(Effect::CharacterDied {
+                    target_id: character_id,
+                    cause: "Failed death saves".to_string(),
+                })
+            } else {
+                Resolution::new(format!(
+                    "{} rolls {} on their death save - FAILURE! ({}/3 failures)",
+                    character.name, roll_value, new_failures
+                ))
+                .with_effect(Effect::DeathSaveFailure {
+                    target_id: character_id,
+                    failures: 1,
+                    total_failures: new_failures,
+                    source: "Death save".to_string(),
+                })
+            }
+        }
+    }
+
+    /// Resolve a concentration check (D&D 5e rules)
+    /// - CON saving throw
+    /// - DC = max(10, damage / 2)
+    fn resolve_concentration_check(
+        &self,
+        world: &GameWorld,
+        character_id: CharacterId,
+        damage_taken: i32,
+        spell_name: &str,
+    ) -> Resolution {
+        let character = &world.player_character;
+
+        // Calculate DC: max(10, damage / 2)
+        let dc = (damage_taken / 2).max(10);
+
+        // Get CON modifier
+        let con_mod = character.ability_scores.modifier(Ability::Constitution);
+        let proficiency = character.proficiency_bonus();
+
+        // Check if proficient in CON saves (some classes like Sorcerer, Wizard with War Caster)
+        // For now, assume base CON save without proficiency unless they have the save proficiency
+        let save_mod = if character
+            .saving_throw_proficiencies
+            .contains(&Ability::Constitution)
+        {
+            con_mod + proficiency
+        } else {
+            con_mod
+        };
+
+        // Roll the save
+        let roll = dice::roll(&format!("1d20+{}", save_mod)).unwrap();
+        let roll_total = roll.total;
+
+        if roll_total >= dc {
+            Resolution::new(format!(
+                "{} makes a DC {} Constitution save to maintain concentration on {}. Rolls {} - SUCCESS! Concentration maintained.",
+                character.name, dc, spell_name, roll_total
+            ))
+            .with_effect(Effect::ConcentrationMaintained {
+                character_id,
+                spell_name: spell_name.to_string(),
+                roll: roll_total,
+                dc,
+            })
+        } else {
+            Resolution::new(format!(
+                "{} makes a DC {} Constitution save to maintain concentration on {}. Rolls {} - FAILED! Concentration is broken!",
+                character.name, dc, spell_name, roll_total
+            ))
+            .with_effect(Effect::ConcentrationBroken {
+                character_id,
+                spell_name: spell_name.to_string(),
+                damage_taken,
+                roll: roll_total,
+                dc,
+            })
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn parse_item_type(s: &str) -> ItemType {
+    match s.to_lowercase().as_str() {
+        "weapon" => ItemType::Weapon,
+        "armor" => ItemType::Armor,
+        "shield" => ItemType::Shield,
+        "potion" => ItemType::Potion,
+        "scroll" => ItemType::Scroll,
+        "wand" => ItemType::Wand,
+        "ring" => ItemType::Ring,
+        "wondrous" => ItemType::Wondrous,
+        "adventuring" => ItemType::Adventuring,
+        "tool" => ItemType::Tool,
+        _ => ItemType::Other,
+    }
 }
 
 impl Default for RulesEngine {
@@ -969,30 +1900,56 @@ pub fn apply_effects(world: &mut GameWorld, effects: &[Effect]) {
 /// Apply a single effect to the game world.
 pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
     match effect {
-        Effect::HpChanged { amount, dropped_to_zero, .. } => {
+        Effect::HpChanged {
+            amount,
+            dropped_to_zero,
+            ..
+        } => {
+            let was_unconscious = world.player_character.hit_points.current <= 0;
+
             if *amount < 0 {
                 world.player_character.hit_points.take_damage(-*amount);
             } else {
                 world.player_character.hit_points.heal(*amount);
             }
+
+            // Add Unconscious condition if dropped to 0
             if *dropped_to_zero {
-                world.player_character.conditions.push(
-                    ActiveCondition::new(Condition::Unconscious, "Dropped to 0 HP")
-                );
+                world.player_character.conditions.push(ActiveCondition::new(
+                    Condition::Unconscious,
+                    "Dropped to 0 HP",
+                ));
             }
+
+            // Remove Unconscious condition and reset death saves if healed above 0
+            if was_unconscious && world.player_character.hit_points.current > 0 {
+                world
+                    .player_character
+                    .conditions
+                    .retain(|c| c.condition != Condition::Unconscious);
+                // Reset death saves when regaining consciousness
+                world.player_character.death_saves.reset();
+            }
+
             // Sync HP to combat state if in combat
             if let Some(ref mut combat) = world.combat {
                 let player_id = world.player_character.id;
                 combat.update_combatant_hp(player_id, world.player_character.hit_points.current);
             }
         }
-        Effect::ConditionApplied { condition, source, .. } => {
-            world.player_character.conditions.push(
-                ActiveCondition::new(*condition, source.clone())
-            );
+        Effect::ConditionApplied {
+            condition, source, ..
+        } => {
+            world
+                .player_character
+                .conditions
+                .push(ActiveCondition::new(*condition, source.clone()));
         }
         Effect::ConditionRemoved { condition, .. } => {
-            world.player_character.conditions.retain(|c| c.condition != *condition);
+            world
+                .player_character
+                .conditions
+                .retain(|c| c.condition != *condition);
         }
         Effect::CombatStarted => {
             world.start_combat();
@@ -1000,7 +1957,14 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
         Effect::CombatEnded => {
             world.end_combat();
         }
-        Effect::CombatantAdded { id, name, initiative, is_ally, current_hp, max_hp } => {
+        Effect::CombatantAdded {
+            id,
+            name,
+            initiative,
+            is_ally,
+            current_hp,
+            max_hp,
+        } => {
             if let Some(ref mut combat) = world.combat {
                 combat.add_combatant(Combatant {
                     id: *id,
@@ -1017,24 +1981,40 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
             if let Some(ref mut combat) = world.combat {
                 combat.next_turn();
             }
+
+            // Decrement condition durations and remove expired conditions
+            world.player_character.conditions.retain_mut(|c| {
+                if let Some(ref mut duration) = c.duration_rounds {
+                    if *duration > 0 {
+                        *duration -= 1;
+                    }
+                    *duration > 0 // Keep only if duration remaining
+                } else {
+                    true // Keep permanent conditions
+                }
+            });
         }
         Effect::TimeAdvanced { minutes } => {
             world.game_time.advance_minutes(*minutes);
         }
-        Effect::RestCompleted { rest_type } => {
-            match rest_type {
-                RestType::Short => world.short_rest(),
-                RestType::Long => world.long_rest(),
-            }
-        }
+        Effect::RestCompleted { rest_type } => match rest_type {
+            RestType::Short => world.short_rest(),
+            RestType::Long => world.long_rest(),
+        },
         Effect::ExperienceGained { amount, .. } => {
             world.player_character.experience += amount;
         }
         Effect::LevelUp { new_level } => {
             world.player_character.level = *new_level;
         }
-        Effect::FeatureUsed { feature_name, uses_remaining } => {
-            if let Some(feature) = world.player_character.features.iter_mut()
+        Effect::FeatureUsed {
+            feature_name,
+            uses_remaining,
+        } => {
+            if let Some(feature) = world
+                .player_character
+                .features
+                .iter_mut()
                 .find(|f| f.name == *feature_name)
             {
                 if let Some(ref mut uses) = feature.uses {
@@ -1056,6 +2036,163 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
         Effect::InitiativeRolled { .. } => {}
         // FactRemembered is handled by the DM agent's memory system, not world state
         Effect::FactRemembered { .. } => {}
+
+        // Inventory effects
+        Effect::ItemAdded {
+            item_name,
+            quantity,
+            ..
+        } => {
+            // Try to look up item from standard database first
+            let item = if let Some(standard_item) = crate::items::find_item(item_name) {
+                let mut item = standard_item.as_item();
+                item.quantity = *quantity;
+                item
+            } else {
+                // Fall back to generic item
+                Item {
+                    name: item_name.clone(),
+                    quantity: *quantity,
+                    weight: 0.0,
+                    value_gp: 0.0,
+                    description: None,
+                    item_type: ItemType::Other,
+                    magical: false,
+                }
+            };
+            world.player_character.inventory.add_item(item);
+        }
+        Effect::ItemRemoved {
+            item_name,
+            quantity,
+            ..
+        } => {
+            world
+                .player_character
+                .inventory
+                .remove_item(item_name, *quantity);
+        }
+        Effect::ItemEquipped { item_name, slot } => {
+            // Look up item from database for proper stats, fall back to defaults
+            match slot.as_str() {
+                "armor" => {
+                    if world.player_character.inventory.find_item(item_name).is_some() {
+                        // Try to get proper armor stats from database
+                        let armor = if let Some(db_armor) = crate::items::get_armor(item_name) {
+                            db_armor
+                        } else {
+                            // Fall back to medium armor defaults
+                            crate::world::ArmorItem::new(
+                                item_name.clone(),
+                                crate::world::ArmorType::Medium,
+                                14,
+                            )
+                        };
+                        world.player_character.equipment.armor = Some(armor);
+                        world.player_character.inventory.remove_item(item_name, 1);
+                    }
+                }
+                "shield" => {
+                    if let Some(item) = world.player_character.inventory.find_item(item_name) {
+                        let shield_item = item.clone();
+                        world.player_character.equipment.shield = Some(shield_item);
+                        world.player_character.inventory.remove_item(item_name, 1);
+                    }
+                }
+                "main_hand" | "weapon" => {
+                    if world.player_character.inventory.find_item(item_name).is_some() {
+                        // Try to get proper weapon stats from database
+                        let weapon = if let Some(db_weapon) = crate::items::get_weapon(item_name) {
+                            db_weapon
+                        } else {
+                            // Fall back to generic 1d8 slashing
+                            crate::world::WeaponItem::new(
+                                item_name.clone(),
+                                "1d8",
+                                crate::world::WeaponDamageType::Slashing,
+                            )
+                        };
+                        world.player_character.equipment.main_hand = Some(weapon);
+                        world.player_character.inventory.remove_item(item_name, 1);
+                    }
+                }
+                "off_hand" => {
+                    if let Some(item) = world.player_character.inventory.find_item(item_name) {
+                        let off_hand_item = item.clone();
+                        world.player_character.equipment.off_hand = Some(off_hand_item);
+                        world.player_character.inventory.remove_item(item_name, 1);
+                    }
+                }
+                _ => {}
+            }
+        }
+        Effect::ItemUnequipped { slot, .. } => {
+            match slot.as_str() {
+                "armor" => {
+                    if let Some(armor) = world.player_character.equipment.armor.take() {
+                        world.player_character.inventory.add_item(armor.base);
+                    }
+                }
+                "shield" => {
+                    if let Some(shield) = world.player_character.equipment.shield.take() {
+                        world.player_character.inventory.add_item(shield);
+                    }
+                }
+                "main_hand" | "weapon" => {
+                    if let Some(weapon) = world.player_character.equipment.main_hand.take() {
+                        world.player_character.inventory.add_item(weapon.base);
+                    }
+                }
+                "off_hand" => {
+                    if let Some(item) = world.player_character.equipment.off_hand.take() {
+                        world.player_character.inventory.add_item(item);
+                    }
+                }
+                _ => {}
+            }
+        }
+        // ItemUsed is informational - the actual effects (healing, etc.) are separate effects
+        Effect::ItemUsed { .. } => {}
+        Effect::GoldChanged { new_total, .. } => {
+            world.player_character.inventory.gold = *new_total;
+        }
+        // AcChanged is informational - AC is recalculated from equipment
+        Effect::AcChanged { .. } => {}
+
+        Effect::DeathSaveFailure { failures, .. } => {
+            for _ in 0..*failures {
+                world.player_character.death_saves.add_failure();
+            }
+        }
+
+        Effect::DeathSavesReset { .. } => {
+            world.player_character.death_saves.reset();
+        }
+
+        Effect::CharacterDied { .. } => {
+            // Character death is tracked via the effect itself
+            // The UI/game can check for this effect and handle appropriately
+            // For now, we don't modify world state further (could add a `dead: bool` flag)
+        }
+
+        Effect::DeathSaveSuccess { total_successes, .. } => {
+            world.player_character.death_saves.successes = *total_successes;
+        }
+
+        Effect::Stabilized { .. } => {
+            // Character is stable - still unconscious but no longer making death saves
+            world.player_character.death_saves.reset();
+            // Note: Character remains Unconscious until healed
+        }
+
+        Effect::ConcentrationBroken { .. } => {
+            // Concentration tracking would be handled here if we had it
+            // For now, this is informational for the UI/narrative
+        }
+
+        Effect::ConcentrationMaintained { .. } => {
+            // Informational - concentration continues
+        }
     }
 }
 
@@ -1080,7 +2217,10 @@ mod tests {
 
         let resolution = engine.resolve(&world, intent);
         assert!(!resolution.effects.is_empty());
-        assert!(resolution.effects.iter().any(|e| matches!(e, Effect::DiceRolled { .. })));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
     }
 
     #[test]
@@ -1097,7 +2237,10 @@ mod tests {
         };
 
         let resolution = engine.resolve(&world, intent);
-        assert!(resolution.effects.iter().any(|e| matches!(e, Effect::HpChanged { amount, .. } if *amount == -10)));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::HpChanged { amount, .. } if *amount == -10)));
     }
 
     #[test]
@@ -1114,7 +2257,10 @@ mod tests {
         };
 
         let resolution = engine.resolve(&world, intent);
-        assert!(resolution.effects.iter().any(|e| matches!(e, Effect::HpChanged { amount, .. } if *amount == 5)));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::HpChanged { amount, .. } if *amount == 5)));
     }
 
     #[test]
@@ -1136,27 +2282,88 @@ mod tests {
     }
 
     #[test]
+    fn test_healing_removes_unconscious() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let mut world = GameWorld::new("Test", character);
+
+        // Verify character is unconscious
+        assert!(world
+            .player_character
+            .conditions
+            .iter()
+            .any(|c| c.condition == Condition::Unconscious));
+
+        // Apply healing effect
+        let effect = Effect::HpChanged {
+            target_id: world.player_character.id,
+            amount: 5,
+            new_current: 5,
+            new_max: world.player_character.hit_points.maximum,
+            dropped_to_zero: false,
+        };
+        apply_effect(&mut world, &effect);
+
+        // Verify unconscious is removed
+        assert!(!world
+            .player_character
+            .conditions
+            .iter()
+            .any(|c| c.condition == Condition::Unconscious));
+        assert_eq!(world.player_character.hit_points.current, 5);
+    }
+
+    #[test]
+    fn test_massive_damage_detection() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 10;
+        character.hit_points.maximum = 30;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Damage that would cause instant death (10 current + 30 max = need 40+ damage)
+        let intent = Intent::Damage {
+            target_id: world.player_character.id,
+            amount: 50,
+            damage_type: DamageType::Slashing,
+            source: "Dragon".to_string(),
+        };
+
+        let resolution = engine.resolve(&world, intent);
+        // Should mention instant death in the narrative
+        assert!(resolution.narrative.contains("INSTANT DEATH"));
+    }
+
+    #[test]
     fn test_start_combat() {
         let character = create_sample_fighter("Roland");
         let world = GameWorld::new("Test", character.clone());
         let engine = RulesEngine::new();
 
         let intent = Intent::StartCombat {
-            combatants: vec![
-                CombatantInit {
-                    id: character.id,
-                    name: "Roland".to_string(),
-                    is_player: true,
-                    is_ally: true,
-                    current_hp: character.hit_points.current,
-                    max_hp: character.hit_points.maximum,
-                },
-            ],
+            combatants: vec![CombatantInit {
+                id: character.id,
+                name: "Roland".to_string(),
+                is_player: true,
+                is_ally: true,
+                current_hp: character.hit_points.current,
+                max_hp: character.hit_points.maximum,
+            }],
         };
 
         let resolution = engine.resolve(&world, intent);
-        assert!(resolution.effects.iter().any(|e| matches!(e, Effect::CombatStarted)));
-        assert!(resolution.effects.iter().any(|e| matches!(e, Effect::InitiativeRolled { .. })));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CombatStarted)));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::InitiativeRolled { .. })));
     }
 
     #[test]
@@ -1171,7 +2378,10 @@ mod tests {
         };
 
         let resolution = engine.resolve(&world, intent);
-        assert!(resolution.effects.iter().any(|e| matches!(e, Effect::DiceRolled { .. })));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
     }
 
     #[test]
@@ -1189,7 +2399,11 @@ mod tests {
 
         let resolution = engine.resolve(&world, intent);
         // Narrative should include HP status
-        assert!(resolution.narrative.contains("HP:"), "Damage narrative should include HP status: {}", resolution.narrative);
+        assert!(
+            resolution.narrative.contains("HP:"),
+            "Damage narrative should include HP status: {}",
+            resolution.narrative
+        );
     }
 
     #[test]
@@ -1208,8 +2422,323 @@ mod tests {
 
         let resolution = engine.resolve(&world, intent);
         // Narrative should indicate unconscious
-        assert!(resolution.narrative.contains("UNCONSCIOUS"), "Lethal damage narrative should indicate UNCONSCIOUS: {}", resolution.narrative);
+        assert!(
+            resolution.narrative.contains("UNCONSCIOUS"),
+            "Lethal damage narrative should indicate UNCONSCIOUS: {}",
+            resolution.narrative
+        );
         // Effect should have dropped_to_zero
-        assert!(resolution.effects.iter().any(|e| matches!(e, Effect::HpChanged { dropped_to_zero: true, .. })));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::HpChanged {
+                dropped_to_zero: true,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn test_short_rest_blocked_during_combat() {
+        let character = create_sample_fighter("Roland");
+        let mut world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Start combat (just need combat state to exist)
+        world.combat = Some(crate::world::CombatState::new());
+
+        let resolution = engine.resolve(&world, Intent::ShortRest);
+        assert!(resolution.effects.is_empty());
+        assert!(resolution.narrative.contains("Cannot take a short rest"));
+    }
+
+    #[test]
+    fn test_long_rest_blocked_during_combat() {
+        let character = create_sample_fighter("Roland");
+        let mut world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Start combat (just need combat state to exist)
+        world.combat = Some(crate::world::CombatState::new());
+
+        let resolution = engine.resolve(&world, Intent::LongRest);
+        assert!(resolution.effects.is_empty());
+        assert!(resolution.narrative.contains("Cannot take a long rest"));
+    }
+
+    #[test]
+    fn test_rest_allowed_outside_combat() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // No combat active
+        assert!(world.combat.is_none());
+
+        let short_rest = engine.resolve(&world, Intent::ShortRest);
+        assert!(!short_rest.effects.is_empty());
+        assert!(short_rest
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::RestCompleted { rest_type: RestType::Short })));
+
+        let long_rest = engine.resolve(&world, Intent::LongRest);
+        assert!(!long_rest.effects.is_empty());
+        assert!(long_rest
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::RestCompleted { rest_type: RestType::Long })));
+    }
+
+    #[test]
+    fn test_unconscious_cannot_attack() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let world = GameWorld::new("Test", character.clone());
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve(
+            &world,
+            Intent::Attack {
+                attacker_id: character.id,
+                target_id: CharacterId::new(),
+                weapon_name: "Longsword".to_string(),
+                advantage: Advantage::Normal,
+            },
+        );
+
+        assert!(resolution.effects.is_empty());
+        assert!(resolution.narrative.contains("unconscious"));
+        assert!(resolution.narrative.contains("cannot attack"));
+    }
+
+    #[test]
+    fn test_unconscious_auto_fails_str_dex_checks() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let world = GameWorld::new("Test", character.clone());
+        let engine = RulesEngine::new();
+
+        // Athletics is a Strength skill - should auto-fail
+        let athletics_check = engine.resolve(
+            &world,
+            Intent::SkillCheck {
+                character_id: character.id,
+                skill: Skill::Athletics,
+                dc: 10,
+                advantage: Advantage::Normal,
+                description: "Climbing".to_string(),
+            },
+        );
+        assert!(athletics_check.narrative.contains("unconscious"));
+        assert!(athletics_check.narrative.contains("automatically fails"));
+
+        // Acrobatics is a Dexterity skill - should auto-fail
+        let acrobatics_check = engine.resolve(
+            &world,
+            Intent::SkillCheck {
+                character_id: character.id,
+                skill: Skill::Acrobatics,
+                dc: 10,
+                advantage: Advantage::Normal,
+                description: "Tumbling".to_string(),
+            },
+        );
+        assert!(acrobatics_check.narrative.contains("unconscious"));
+        assert!(acrobatics_check.narrative.contains("automatically fails"));
+
+        // Perception is a Wisdom skill - should NOT auto-fail
+        let perception_check = engine.resolve(
+            &world,
+            Intent::SkillCheck {
+                character_id: character.id,
+                skill: Skill::Perception,
+                dc: 10,
+                advantage: Advantage::Normal,
+                description: "Noticing".to_string(),
+            },
+        );
+        // Should actually roll (won't auto-fail since it's Wisdom-based)
+        assert!(perception_check
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+    }
+
+    #[test]
+    fn test_unconscious_auto_fails_str_dex_saves() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let world = GameWorld::new("Test", character.clone());
+        let engine = RulesEngine::new();
+
+        // Dexterity save - should auto-fail
+        let dex_save = engine.resolve(
+            &world,
+            Intent::SavingThrow {
+                character_id: character.id,
+                ability: Ability::Dexterity,
+                dc: 15,
+                advantage: Advantage::Normal,
+                source: "Fireball".to_string(),
+            },
+        );
+        assert!(dex_save.narrative.contains("unconscious"));
+        assert!(dex_save.narrative.contains("automatically fails"));
+
+        // Constitution save - should NOT auto-fail
+        let con_save = engine.resolve(
+            &world,
+            Intent::SavingThrow {
+                character_id: character.id,
+                ability: Ability::Constitution,
+                dc: 15,
+                advantage: Advantage::Normal,
+                source: "Poison".to_string(),
+            },
+        );
+        // Should actually roll
+        assert!(con_save
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+    }
+
+    #[test]
+    fn test_damage_at_zero_hp_causes_death_save_failure() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let world = GameWorld::new("Test", character.clone());
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve(
+            &world,
+            Intent::Damage {
+                target_id: character.id,
+                amount: 5,
+                damage_type: DamageType::Slashing,
+                source: "Goblin".to_string(),
+            },
+        );
+
+        // Should have death save failure effect
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DeathSaveFailure { failures: 1, total_failures: 1, .. })));
+        assert!(resolution.narrative.contains("death save failure"));
+    }
+
+    #[test]
+    fn test_massive_damage_at_zero_hp_causes_instant_death() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.hit_points.maximum = 30;
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let world = GameWorld::new("Test", character.clone());
+        let engine = RulesEngine::new();
+
+        // Damage >= max HP while at 0 HP = instant death
+        let resolution = engine.resolve(
+            &world,
+            Intent::Damage {
+                target_id: character.id,
+                amount: 30,
+                damage_type: DamageType::Slashing,
+                source: "Dragon".to_string(),
+            },
+        );
+
+        // Should have character died effect
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CharacterDied { .. })));
+        assert!(resolution.narrative.contains("INSTANT DEATH"));
+    }
+
+    #[test]
+    fn test_healing_resets_death_saves() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.death_saves.failures = 2; // 2 failures already
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let mut world = GameWorld::new("Test", character);
+
+        // Apply healing effect
+        let effect = Effect::HpChanged {
+            target_id: world.player_character.id,
+            amount: 5,
+            new_current: 5,
+            new_max: world.player_character.hit_points.maximum,
+            dropped_to_zero: false,
+        };
+        apply_effect(&mut world, &effect);
+
+        // Death saves should be reset
+        assert_eq!(world.player_character.death_saves.failures, 0);
+        assert_eq!(world.player_character.death_saves.successes, 0);
+        // Unconscious should be removed
+        assert!(!world
+            .player_character
+            .conditions
+            .iter()
+            .any(|c| c.condition == Condition::Unconscious));
+    }
+
+    #[test]
+    fn test_three_death_save_failures_causes_death() {
+        let mut character = create_sample_fighter("Roland");
+        character.hit_points.current = 0;
+        character.death_saves.failures = 2; // Already have 2 failures
+        character.conditions.push(crate::world::ActiveCondition::new(
+            Condition::Unconscious,
+            "Dropped to 0 HP",
+        ));
+        let world = GameWorld::new("Test", character.clone());
+        let engine = RulesEngine::new();
+
+        // Take damage at 0 HP - should cause 3rd failure and death
+        let resolution = engine.resolve(
+            &world,
+            Intent::Damage {
+                target_id: character.id,
+                amount: 5,
+                damage_type: DamageType::Slashing,
+                source: "Goblin".to_string(),
+            },
+        );
+
+        // Should have both death save failure and character died effects
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DeathSaveFailure { total_failures: 3, .. })));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CharacterDied { .. })));
+        assert!(resolution.narrative.contains("DIES"));
     }
 }

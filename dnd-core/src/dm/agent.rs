@@ -6,10 +6,11 @@
 
 use super::memory::{DmMemory, FactCategory};
 use super::story_memory::{EntityType, FactCategory as StoryFactCategory, FactSource, StoryMemory};
-use super::tools::{DmTools, parse_tool_call};
+use super::tools::{execute_info_tool, parse_tool_call, DmTools};
 use crate::rules::{apply_effects, Effect, Intent, Resolution, RulesEngine};
 use crate::world::{GameMode, GameWorld, NarrativeType};
-use claude::{Claude, ContentBlock, Message, Request, StopReason, ToolResult};
+use claude::{Claude, ContentBlock, Message, Request, StopReason, StreamEvent, ToolResult};
+use futures::StreamExt;
 use thiserror::Error;
 
 /// Errors from the DM agent.
@@ -205,7 +206,11 @@ impl DungeonMaster {
             // Execute tools and collect results
             let mut tool_results = Vec::new();
             for (id, name, input) in tool_uses {
-                let result = if let Some(intent) = parse_tool_call(&name, &input, world) {
+                // First check if it's an informational tool
+                let result = if let Some(info_result) = execute_info_tool(&name, &input, world) {
+                    // Info tools just return data without changing state
+                    ToolResult::success(&info_result)
+                } else if let Some(intent) = parse_tool_call(&name, &input, world) {
                     // Resolve the intent
                     let resolution = self.rules.resolve(world, intent.clone());
 
@@ -257,6 +262,233 @@ impl DungeonMaster {
                 role: claude::Role::User,
                 content: tool_results,
             });
+        }
+
+        // Add DM response to memory
+        self.memory.add_dm_message(&narrative);
+
+        // Add to game world narrative
+        world.add_narrative(narrative.clone(), NarrativeType::DmNarration);
+
+        Ok(DmResponse {
+            narrative,
+            intents: all_intents,
+            effects: all_effects,
+            resolutions: all_resolutions,
+        })
+    }
+
+    /// Process player input with streaming text callbacks.
+    ///
+    /// The callback is called with each text delta as it arrives.
+    /// Tool execution still happens synchronously between text chunks.
+    pub async fn process_input_streaming<F>(
+        &mut self,
+        player_input: &str,
+        world: &mut GameWorld,
+        mut on_text: F,
+    ) -> Result<DmResponse, DmError>
+    where
+        F: FnMut(&str) + Send,
+    {
+        // Advance story turn
+        self.story_memory.advance_turn();
+
+        // Add player input to memory
+        self.memory.add_player_message(player_input);
+
+        // Add to game world narrative
+        world.add_narrative(player_input.to_string(), NarrativeType::PlayerAction);
+
+        // Build system prompt with story context for this input
+        let system_prompt = self.build_system_prompt(world, player_input);
+
+        // Track intents, effects, and resolutions
+        let mut all_intents = Vec::new();
+        let mut all_effects = Vec::new();
+        let mut all_resolutions = Vec::new();
+        let mut narrative = String::new();
+
+        // Build initial messages
+        let mut messages = self.memory.get_messages();
+
+        // Tool use loop
+        loop {
+            let tools = DmTools::all();
+
+            let mut request = Request::new(messages.clone())
+                .with_system(&system_prompt)
+                .with_max_tokens(self.config.max_tokens)
+                .with_tools(tools);
+
+            if let Some(ref model) = self.config.model {
+                request = request.with_model(model);
+            }
+
+            if let Some(temp) = self.config.temperature {
+                request = request.with_temperature(temp);
+            }
+
+            // Use streaming API
+            let mut stream = self.client.stream(request).await?;
+
+            // Track tool uses being accumulated
+            let mut tool_uses: Vec<PartialToolUse> = Vec::new();
+            let mut current_tool_index: Option<usize> = None;
+            let mut stop_reason = StopReason::EndTurn;
+
+            while let Some(event_result) = stream.next().await {
+                let event = event_result?;
+                match event {
+                    StreamEvent::TextDelta { text, .. } => {
+                        // Send text to callback immediately
+                        on_text(&text);
+                        narrative.push_str(&text);
+                    }
+                    StreamEvent::ContentBlockStart {
+                        index,
+                        content_type,
+                        tool_use_id,
+                        tool_name,
+                    } => {
+                        if content_type == "tool_use" {
+                            // Start accumulating a new tool use
+                            current_tool_index = Some(index);
+                            tool_uses.push(PartialToolUse {
+                                id: tool_use_id.unwrap_or_default(),
+                                name: tool_name.unwrap_or_default(),
+                                json_buffer: String::new(),
+                            });
+                        }
+                    }
+                    StreamEvent::InputJsonDelta { index, partial_json } => {
+                        // Accumulate JSON for the current tool use
+                        if let Some(current_idx) = current_tool_index {
+                            if index == current_idx {
+                                if let Some(tool) = tool_uses.last_mut() {
+                                    tool.json_buffer.push_str(&partial_json);
+                                }
+                            }
+                        }
+                    }
+                    StreamEvent::ContentBlockStop { index } => {
+                        // Reset current tool index if this was a tool block
+                        if Some(index) == current_tool_index {
+                            current_tool_index = None;
+                        }
+                    }
+                    StreamEvent::MessageDelta {
+                        stop_reason: Some(sr),
+                    } => {
+                        stop_reason = sr;
+                    }
+                    StreamEvent::Error { message } => {
+                        return Err(DmError::ToolError(format!("Stream error: {message}")));
+                    }
+                    _ => {
+                        // Ignore other events (MessageStart, MessageStop, Ping, etc.)
+                    }
+                }
+            }
+
+            // If no tool calls or stop reason isn't ToolUse, we're done
+            if stop_reason != StopReason::ToolUse || tool_uses.is_empty() {
+                break;
+            }
+
+            // Build assistant message content from what we received
+            let mut assistant_content: Vec<ContentBlock> = Vec::new();
+
+            // Add narrative text if any
+            if !narrative.is_empty() {
+                // Only add the new narrative since last iteration
+                assistant_content.push(ContentBlock::Text {
+                    text: narrative.clone(),
+                });
+            }
+
+            // Add tool uses
+            for tool in &tool_uses {
+                let input: serde_json::Value =
+                    serde_json::from_str(&tool.json_buffer).unwrap_or(serde_json::Value::Null);
+                assistant_content.push(ContentBlock::ToolUse {
+                    id: tool.id.clone(),
+                    name: tool.name.clone(),
+                    input,
+                });
+            }
+
+            // Add assistant response to messages
+            messages.push(Message {
+                role: claude::Role::Assistant,
+                content: assistant_content,
+            });
+
+            // Execute tools and collect results
+            let mut tool_results = Vec::new();
+            for tool in tool_uses {
+                let input: serde_json::Value =
+                    serde_json::from_str(&tool.json_buffer).unwrap_or(serde_json::Value::Null);
+
+                // First check if it's an informational tool
+                let result = if let Some(info_result) = execute_info_tool(&tool.name, &input, world)
+                {
+                    // Info tools just return data without changing state
+                    ToolResult::success(&info_result)
+                } else if let Some(intent) = parse_tool_call(&tool.name, &input, world) {
+                    // Resolve the intent
+                    let resolution = self.rules.resolve(world, intent.clone());
+
+                    // Apply effects to world
+                    apply_effects(world, &resolution.effects);
+
+                    // Handle FactRemembered effects specially - store in story memory
+                    for effect in &resolution.effects {
+                        if let Effect::FactRemembered {
+                            subject_name,
+                            subject_type,
+                            fact,
+                            category,
+                            related_entities,
+                            importance,
+                        } = effect
+                        {
+                            self.store_fact(
+                                subject_name,
+                                subject_type,
+                                fact,
+                                category,
+                                related_entities,
+                                *importance,
+                            );
+                        }
+                    }
+
+                    // Store for response
+                    all_intents.push(intent);
+                    all_effects.extend(resolution.effects.clone());
+                    all_resolutions.push(resolution.clone());
+
+                    // Return narrative as tool result
+                    ToolResult::success(&resolution.narrative)
+                } else {
+                    ToolResult::error(format!("Unknown tool: {}", tool.name))
+                };
+
+                tool_results.push(ContentBlock::ToolResult {
+                    tool_use_id: tool.id,
+                    content: result.content,
+                    is_error: result.is_error,
+                });
+            }
+
+            // Add tool results as user message
+            messages.push(Message {
+                role: claude::Role::User,
+                content: tool_results,
+            });
+
+            // Clear tool_uses for next iteration
         }
 
         // Add DM response to memory
@@ -328,15 +560,24 @@ impl DungeonMaster {
         prompt.push_str(&format!("**Name:** {}\n", pc.name));
         prompt.push_str(&format!("**Level:** {}", pc.level));
         if !pc.classes.is_empty() {
-            let class_info: Vec<_> = pc.classes.iter()
+            let class_info: Vec<_> = pc
+                .classes
+                .iter()
                 .map(|c| format!("{} {}", c.class.name(), c.level))
                 .collect();
             prompt.push_str(&format!(" ({})", class_info.join("/")));
         }
         prompt.push('\n');
         prompt.push_str(&format!("**Race:** {}\n", pc.race.name));
-        prompt.push_str(&format!("**Background:** {} - {}\n", pc.background.name(), pc.background.description()));
-        prompt.push_str(&format!("**HP:** {}/{}\n", pc.hit_points.current, pc.hit_points.maximum));
+        prompt.push_str(&format!(
+            "**Background:** {} - {}\n",
+            pc.background.name(),
+            pc.background.description()
+        ));
+        prompt.push_str(&format!(
+            "**HP:** {}/{}\n",
+            pc.hit_points.current, pc.hit_points.maximum
+        ));
         prompt.push_str(&format!("**AC:** {}\n", pc.current_ac()));
 
         // Add ability scores
@@ -353,9 +594,14 @@ impl DungeonMaster {
         // Add current situation
         prompt.push_str("\n## Current Situation\n");
         prompt.push_str(&format!("Location: {}\n", world.current_location.name));
-        prompt.push_str(&format!("Time: {} ({})\n",
+        prompt.push_str(&format!(
+            "Time: {} ({})\n",
             world.game_time.time_of_day(),
-            if world.game_time.is_daytime() { "day" } else { "night" }
+            if world.game_time.is_daytime() {
+                "day"
+            } else {
+                "night"
+            }
         ));
         prompt.push_str(&format!("Mode: {:?}\n", world.mode));
 
@@ -499,4 +745,14 @@ impl DungeonMaster {
             importance,
         );
     }
+}
+
+/// Helper for accumulating tool use data during streaming.
+struct PartialToolUse {
+    /// Tool use ID from the API.
+    id: String,
+    /// Tool name.
+    name: String,
+    /// Accumulated JSON input buffer.
+    json_buffer: String,
 }

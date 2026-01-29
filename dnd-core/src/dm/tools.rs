@@ -4,8 +4,8 @@
 //! by generating Intents that the RulesEngine resolves.
 
 use crate::dice::Advantage;
-use crate::rules::{DamageType, Intent, CombatantInit};
-use crate::world::{Ability, CharacterId, Condition, Skill, GameWorld};
+use crate::rules::{CombatantInit, DamageType, Intent};
+use crate::world::{Ability, CharacterId, Condition, GameWorld, Skill};
 use claude::Tool;
 use serde_json::{json, Value};
 
@@ -30,7 +30,50 @@ impl DmTools {
             Self::short_rest(),
             Self::long_rest(),
             Self::remember_fact(),
+            // Inventory tools
+            Self::give_item(),
+            Self::remove_item(),
+            Self::use_item(),
+            Self::equip_item(),
+            Self::unequip_item(),
+            Self::adjust_gold(),
+            Self::show_inventory(),
+            Self::death_save(),
+            Self::concentration_check(),
         ]
+    }
+
+    fn death_save() -> Tool {
+        Tool {
+            name: "death_save".to_string(),
+            description: "Make a death saving throw for a character at 0 HP. Roll d20: 10+ = success, <10 = failure, nat 20 = regain 1 HP, nat 1 = 2 failures. 3 successes = stable, 3 failures = death.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        }
+    }
+
+    fn concentration_check() -> Tool {
+        Tool {
+            name: "concentration_check".to_string(),
+            description: "Make a concentration check when a concentrating spellcaster takes damage. DC = max(10, damage/2). CON save to maintain concentration.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "damage_taken": {
+                        "type": "integer",
+                        "description": "Amount of damage taken that triggered the check"
+                    },
+                    "spell_name": {
+                        "type": "string",
+                        "description": "Name of the spell being concentrated on"
+                    }
+                },
+                "required": ["damage_taken", "spell_name"]
+            }),
+        }
     }
 
     fn remember_fact() -> Tool {
@@ -78,7 +121,8 @@ impl DmTools {
     fn roll_dice() -> Tool {
         Tool {
             name: "roll_dice".to_string(),
-            description: "Roll dice using standard D&D notation (e.g., '2d6+3', '1d20', '4d6kh3').".to_string(),
+            description: "Roll dice using standard D&D notation (e.g., '2d6+3', '1d20', '4d6kh3')."
+                .to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -133,7 +177,8 @@ impl DmTools {
     fn ability_check() -> Tool {
         Tool {
             name: "ability_check".to_string(),
-            description: "Have a character make a raw ability check (not tied to a skill).".to_string(),
+            description: "Have a character make a raw ability check (not tied to a skill)."
+                .to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -297,7 +342,8 @@ impl DmTools {
     fn start_combat() -> Tool {
         Tool {
             name: "start_combat".to_string(),
-            description: "Start a combat encounter. Initiative will be rolled for all combatants.".to_string(),
+            description: "Start a combat encounter. Initiative will be rolled for all combatants."
+                .to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
@@ -365,6 +411,163 @@ impl DmTools {
             }),
         }
     }
+
+    // Inventory management tools
+
+    fn give_item() -> Tool {
+        Tool {
+            name: "give_item".to_string(),
+            description: "Give an item to the player. Use this when they find loot, receive rewards, or purchase items.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "item_name": {
+                        "type": "string",
+                        "description": "Name of the item (e.g., 'Longsword', 'Healing Potion', 'Rope')"
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Number of items to give (default 1)"
+                    },
+                    "item_type": {
+                        "type": "string",
+                        "enum": ["weapon", "armor", "shield", "potion", "scroll", "wand", "ring", "wondrous", "adventuring", "tool", "other"],
+                        "description": "Type of item"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional description of the item"
+                    },
+                    "magical": {
+                        "type": "boolean",
+                        "description": "Whether the item is magical (default false)"
+                    },
+                    "weight": {
+                        "type": "number",
+                        "description": "Weight in pounds (optional)"
+                    },
+                    "value_gp": {
+                        "type": "number",
+                        "description": "Value in gold pieces (optional)"
+                    }
+                },
+                "required": ["item_name"]
+            }),
+        }
+    }
+
+    fn remove_item() -> Tool {
+        Tool {
+            name: "remove_item".to_string(),
+            description: "Remove an item from the player's inventory. Use when items are consumed, lost, sold, or given away.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "item_name": {
+                        "type": "string",
+                        "description": "Name of the item to remove"
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Number of items to remove (default 1)"
+                    }
+                },
+                "required": ["item_name"]
+            }),
+        }
+    }
+
+    fn use_item() -> Tool {
+        Tool {
+            name: "use_item".to_string(),
+            description: "Use a consumable item from inventory. Handles potions (healing), scrolls (spells), and other consumables.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "item_name": {
+                        "type": "string",
+                        "description": "Name of the item to use"
+                    },
+                    "target": {
+                        "type": "string",
+                        "enum": ["self", "ally", "enemy"],
+                        "description": "Target of the item effect (default 'self')"
+                    }
+                },
+                "required": ["item_name"]
+            }),
+        }
+    }
+
+    fn equip_item() -> Tool {
+        Tool {
+            name: "equip_item".to_string(),
+            description: "Equip a weapon, armor, or shield from inventory. Affects AC and attack damage.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "item_name": {
+                        "type": "string",
+                        "description": "Name of the item to equip"
+                    }
+                },
+                "required": ["item_name"]
+            }),
+        }
+    }
+
+    fn unequip_item() -> Tool {
+        Tool {
+            name: "unequip_item".to_string(),
+            description: "Unequip an item from a slot and return it to inventory.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "slot": {
+                        "type": "string",
+                        "enum": ["armor", "shield", "main_hand", "off_hand"],
+                        "description": "Equipment slot to unequip from"
+                    }
+                },
+                "required": ["slot"]
+            }),
+        }
+    }
+
+    fn adjust_gold() -> Tool {
+        Tool {
+            name: "adjust_gold".to_string(),
+            description: "Add or remove gold from the player. Positive values add gold, negative values remove it.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "amount": {
+                        "type": "number",
+                        "description": "Amount of gold to add (positive) or remove (negative)"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the gold change (e.g., 'looting chest', 'buying supplies', 'quest reward')"
+                    }
+                },
+                "required": ["amount"]
+            }),
+        }
+    }
+
+    fn show_inventory() -> Tool {
+        Tool {
+            name: "show_inventory".to_string(),
+            description: "Display the player's current inventory, equipment, and gold. Use this to check what items they have.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        }
+    }
 }
 
 /// Parse a tool call into an Intent.
@@ -419,6 +622,10 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
         }
         "apply_damage" => {
             let amount = input["amount"].as_i64()? as i32;
+            // Validate damage is positive
+            if amount <= 0 {
+                return None;
+            }
             let damage_type = parse_damage_type(input["damage_type"].as_str()?)?;
             let source = input["source"].as_str().unwrap_or("unknown").to_string();
             Some(Intent::Damage {
@@ -430,6 +637,10 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
         }
         "apply_healing" => {
             let amount = input["amount"].as_i64()? as i32;
+            // Validate healing is positive
+            if amount <= 0 {
+                return None;
+            }
             let source = input["source"].as_str().unwrap_or("healing").to_string();
             Some(Intent::Heal {
                 target_id: world.player_character.id,
@@ -512,8 +723,165 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
                 importance,
             })
         }
+        // Inventory tools
+        "give_item" => {
+            let item_name = input["item_name"].as_str()?.to_string();
+            let quantity = input["quantity"].as_u64().unwrap_or(1) as u32;
+            let item_type = input["item_type"].as_str().map(|s| s.to_string());
+            let description = input["description"].as_str().map(|s| s.to_string());
+            let magical = input["magical"].as_bool().unwrap_or(false);
+            let weight = input["weight"].as_f64().map(|w| w as f32);
+            let value_gp = input["value_gp"].as_f64().map(|v| v as f32);
+
+            Some(Intent::AddItem {
+                item_name,
+                quantity,
+                item_type,
+                description,
+                magical,
+                weight,
+                value_gp,
+            })
+        }
+        "remove_item" => {
+            let item_name = input["item_name"].as_str()?.to_string();
+            let quantity = input["quantity"].as_u64().unwrap_or(1) as u32;
+
+            Some(Intent::RemoveItem { item_name, quantity })
+        }
+        "use_item" => {
+            let item_name = input["item_name"].as_str()?.to_string();
+            // Target handling would be more sophisticated in a full implementation
+            let target_id = None;
+
+            Some(Intent::UseItem {
+                item_name,
+                target_id,
+            })
+        }
+        "equip_item" => {
+            let item_name = input["item_name"].as_str()?.to_string();
+            Some(Intent::EquipItem { item_name })
+        }
+        "unequip_item" => {
+            let slot = input["slot"].as_str()?.to_string();
+            Some(Intent::UnequipItem { slot })
+        }
+        "adjust_gold" => {
+            let amount = input["amount"].as_f64()? as f32;
+            let reason = input["reason"]
+                .as_str()
+                .unwrap_or("gold adjustment")
+                .to_string();
+            Some(Intent::AdjustGold { amount, reason })
+        }
+        "death_save" => Some(Intent::DeathSave {
+            character_id: world.player_character.id,
+        }),
+        "concentration_check" => {
+            let damage_taken = input["damage_taken"].as_i64()? as i32;
+            let spell_name = input["spell_name"].as_str()?.to_string();
+            Some(Intent::ConcentrationCheck {
+                character_id: world.player_character.id,
+                damage_taken,
+                spell_name,
+            })
+        }
+        // show_inventory is handled specially via execute_info_tool
         _ => None,
     }
+}
+
+/// Execute an informational tool that returns data without creating an Intent.
+/// Returns Some(result_string) if the tool is an info tool, None otherwise.
+pub fn execute_info_tool(name: &str, _input: &Value, world: &GameWorld) -> Option<String> {
+    match name {
+        "show_inventory" => Some(format_inventory(world)),
+        _ => None,
+    }
+}
+
+/// Format the player's inventory for display.
+fn format_inventory(world: &GameWorld) -> String {
+    let character = &world.player_character;
+    let mut output = String::new();
+
+    output.push_str(&format!("=== {}'s Inventory ===\n\n", character.name));
+
+    // Gold
+    output.push_str(&format!("Gold: {:.0} gp\n\n", character.inventory.gold));
+
+    // Current AC
+    output.push_str(&format!("Current AC: {}\n\n", character.current_ac()));
+
+    // Equipment
+    output.push_str("Equipment:\n");
+    if let Some(ref armor) = character.equipment.armor {
+        let armor_type_str = match armor.armor_type {
+            crate::world::ArmorType::Light => "Light",
+            crate::world::ArmorType::Medium => "Medium",
+            crate::world::ArmorType::Heavy => "Heavy",
+        };
+        let stealth_str = if armor.stealth_disadvantage {
+            " [Stealth Disadvantage]"
+        } else {
+            ""
+        };
+        output.push_str(&format!(
+            "  Armor: {} ({} armor, base AC {}){}\n",
+            armor.base.name, armor_type_str, armor.base_ac, stealth_str
+        ));
+    } else {
+        output.push_str("  Armor: None (unarmored)\n");
+    }
+    if let Some(ref shield) = character.equipment.shield {
+        output.push_str(&format!("  Shield: {} (+2 AC)\n", shield.name));
+    } else {
+        output.push_str("  Shield: None\n");
+    }
+    if let Some(ref weapon) = character.equipment.main_hand {
+        let two_handed = if weapon.is_two_handed() {
+            " [Two-Handed]"
+        } else {
+            ""
+        };
+        output.push_str(&format!(
+            "  Main Hand: {} ({} {}){}\n",
+            weapon.base.name, weapon.damage_dice, weapon.damage_type.name(), two_handed
+        ));
+    } else {
+        output.push_str("  Main Hand: Empty\n");
+    }
+    if let Some(ref item) = character.equipment.off_hand {
+        output.push_str(&format!("  Off Hand: {}\n", item.name));
+    }
+
+    // Inventory items
+    if character.inventory.items.is_empty() {
+        output.push_str("\nInventory: Empty\n");
+    } else {
+        output.push_str("\nInventory:\n");
+        for item in &character.inventory.items {
+            let qty_str = if item.quantity > 1 {
+                format!(" (x{})", item.quantity)
+            } else {
+                String::new()
+            };
+            let value_str = if item.value_gp > 0.0 {
+                format!(" [{:.0} gp]", item.value_gp)
+            } else {
+                String::new()
+            };
+            output.push_str(&format!("  - {}{}{}\n", item.name, qty_str, value_str));
+        }
+    }
+
+    output.push_str(&format!(
+        "\nTotal Weight: {:.1} lb\n",
+        character.inventory.total_weight()
+    ));
+
+    output
 }
 
 fn parse_skill(s: &str) -> Option<Skill> {
