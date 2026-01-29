@@ -306,6 +306,9 @@ pub struct CombatantInit {
     pub is_ally: bool,
     pub current_hp: i32,
     pub max_hp: i32,
+    pub armor_class: u8,
+    /// Initiative modifier (DEX mod for most creatures)
+    pub initiative_modifier: i8,
 }
 
 /// Common D&D damage types.
@@ -429,6 +432,7 @@ pub enum Effect {
         is_ally: bool,
         current_hp: i32,
         max_hp: i32,
+        armor_class: u8,
     },
 
     /// Time advanced
@@ -873,7 +877,7 @@ impl RulesEngine {
         &self,
         world: &GameWorld,
         _attacker_id: CharacterId,
-        _target_id: CharacterId,
+        target_id: CharacterId,
         weapon_name: &str,
         advantage: Advantage,
     ) -> Resolution {
@@ -887,7 +891,19 @@ impl RulesEngine {
             ));
         }
 
-        let target_ac = 15; // TODO: Get from target
+        // Get target AC from combat state, or use player AC if targeting self
+        let target_ac = if target_id == world.player_character.id {
+            world.player_character.current_ac()
+        } else if let Some(ref combat) = world.combat {
+            combat
+                .combatants
+                .iter()
+                .find(|c| c.id == target_id)
+                .map(|c| c.armor_class)
+                .unwrap_or(10) // Fallback for unknown targets
+        } else {
+            10 // Default AC outside combat
+        };
 
         // Look up weapon from database or equipped weapon
         let weapon = crate::items::get_weapon(weapon_name);
@@ -1102,8 +1118,19 @@ impl RulesEngine {
                 purpose: format!("{} spell attack", attack_type_name),
             });
 
-            let target_ac = 15; // Default AC, DM should adjust
             let target_name = target_names.first().map(|s| s.as_str()).unwrap_or("target");
+
+            // Look up target AC from combat state by name
+            let target_ac = if let Some(ref combat) = world.combat {
+                combat
+                    .combatants
+                    .iter()
+                    .find(|c| c.name.eq_ignore_ascii_case(target_name))
+                    .map(|c| c.armor_class)
+                    .unwrap_or(10)
+            } else {
+                10 // Default AC outside combat
+            };
 
             narrative_parts.push(format!(
                 "Makes a {} spell attack against {}: {} vs AC {}.",
@@ -1686,7 +1713,7 @@ impl RulesEngine {
             let modifier = if init.is_player {
                 world.player_character.initiative_modifier()
             } else {
-                0 // NPCs would have their own modifier
+                init.initiative_modifier
             };
 
             let roll = dice::roll("1d20").unwrap();
@@ -1706,6 +1733,7 @@ impl RulesEngine {
                 is_ally: init.is_ally,
                 current_hp: init.current_hp,
                 max_hp: init.max_hp,
+                armor_class: init.armor_class,
             });
         }
 
@@ -3140,6 +3168,7 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
             is_ally,
             current_hp,
             max_hp,
+            armor_class,
         } => {
             if let Some(ref mut combat) = world.combat {
                 combat.add_combatant(Combatant {
@@ -3150,6 +3179,7 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
                     is_ally: *is_ally,
                     current_hp: *current_hp,
                     max_hp: *max_hp,
+                    armor_class: *armor_class,
                 });
             }
         }
@@ -3554,6 +3584,8 @@ mod tests {
                 is_ally: true,
                 current_hp: character.hit_points.current,
                 max_hp: character.hit_points.maximum,
+                armor_class: character.current_ac(),
+                initiative_modifier: character.initiative_modifier(),
             }],
         };
 

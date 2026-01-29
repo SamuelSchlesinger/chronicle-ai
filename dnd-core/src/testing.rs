@@ -343,6 +343,8 @@ mod tests {
                         is_ally: true,
                         current_hp: 10,
                         max_hp: 10,
+                        armor_class: 10,
+                        initiative_modifier: 0,
                     },
                     CombatantInit {
                         id: CharacterId::new(),
@@ -351,6 +353,8 @@ mod tests {
                         is_ally: false,
                         current_hp: 7,
                         max_hp: 7,
+                        armor_class: 13, // Goblin AC from SRD
+                        initiative_modifier: 2, // Goblin DEX +2 from SRD
                     },
                 ],
             }],

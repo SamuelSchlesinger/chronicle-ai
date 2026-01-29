@@ -1058,6 +1058,8 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
                 is_ally: true,
                 current_hp: player_hp.current,
                 max_hp: player_hp.maximum,
+                armor_class: world.player_character.current_ac(),
+                initiative_modifier: world.player_character.initiative_modifier(),
             }];
 
             for enemy in enemies {
@@ -1065,6 +1067,10 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
                 // Parse enemy HP if provided, default to 10/10 for basic enemies
                 let max_hp = enemy["max_hp"].as_i64().unwrap_or(10) as i32;
                 let current_hp = enemy["current_hp"].as_i64().unwrap_or(max_hp as i64) as i32;
+                // Parse enemy AC if provided, default to 10 (unarmored)
+                let armor_class = enemy["armor_class"].as_u64().unwrap_or(10) as u8;
+                // Parse initiative modifier if provided, default to 0
+                let initiative_modifier = enemy["initiative_modifier"].as_i64().unwrap_or(0) as i8;
                 combatants.push(CombatantInit {
                     id: CharacterId::new(),
                     name,
@@ -1072,6 +1078,8 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
                     is_ally: false,
                     current_hp,
                     max_hp,
+                    armor_class,
+                    initiative_modifier,
                 });
             }
 

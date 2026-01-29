@@ -1889,6 +1889,7 @@ pub struct Combatant {
     pub is_ally: bool,
     pub current_hp: i32,
     pub max_hp: i32,
+    pub armor_class: u8,
 }
 
 /// Combat state tracking.
