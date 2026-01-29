@@ -691,6 +691,94 @@ fn build_spell_database() -> HashMap<String, SpellData> {
         classes: vec![SpellClass::Bard, SpellClass::Sorcerer, SpellClass::Wizard],
     });
 
+    db.insert("hex".to_string(), SpellData {
+        name: "Hex".to_string(),
+        level: 1,
+        school: SpellSchool::Enchantment,
+        casting_time: CastingTime::BonusAction,
+        range: SpellRange::Feet(90),
+        components: Components::vsm("the petrified eye of a newt"),
+        duration: SpellDuration::Hours(1),
+        concentration: true,
+        ritual: false,
+        description: "You place a curse on a creature that you can see within range. Until the spell ends, you deal an extra 1d6 necrotic damage to the target whenever you hit it with an attack. Also, choose one ability when you cast the spell. The target has disadvantage on ability checks made with the chosen ability. If the target drops to 0 HP before this spell ends, you can use a bonus action on a subsequent turn to curse a new creature.".to_string(),
+        damage_dice: Some("1d6".to_string()),
+        damage_type: Some(DamageType::Necrotic),
+        damage_scaling: DamageScaling::None,
+        healing_dice: None,
+        save_type: None,
+        save_effect: None,
+        attack_type: None,
+        area_of_effect: AreaOfEffect::None,
+        classes: vec![SpellClass::Warlock],
+    });
+
+    db.insert("hellish rebuke".to_string(), SpellData {
+        name: "Hellish Rebuke".to_string(),
+        level: 1,
+        school: SpellSchool::Evocation,
+        casting_time: CastingTime::Reaction("which you take in response to being damaged by a creature within 60 feet of you that you can see".to_string()),
+        range: SpellRange::Feet(60),
+        components: Components::vs(),
+        duration: SpellDuration::Instantaneous,
+        concentration: false,
+        ritual: false,
+        description: "You point your finger, and the creature that damaged you is momentarily surrounded by hellish flames. The creature must make a Dexterity saving throw. It takes 2d10 fire damage on a failed save, or half as much damage on a successful one. When cast with a higher level slot, the damage increases by 1d10 per slot level above 1st.".to_string(),
+        damage_dice: Some("2d10".to_string()),
+        damage_type: Some(DamageType::Fire),
+        damage_scaling: DamageScaling::PerSlotLevel { extra_dice: "1d10".to_string() },
+        healing_dice: None,
+        save_type: Some(Ability::Dexterity),
+        save_effect: Some("half damage".to_string()),
+        attack_type: None,
+        area_of_effect: AreaOfEffect::None,
+        classes: vec![SpellClass::Warlock],
+    });
+
+    db.insert("armor of agathys".to_string(), SpellData {
+        name: "Armor of Agathys".to_string(),
+        level: 1,
+        school: SpellSchool::Abjuration,
+        casting_time: CastingTime::Action,
+        range: SpellRange::Self_,
+        components: Components::vsm("a cup of water"),
+        duration: SpellDuration::Hours(1),
+        concentration: false,
+        ritual: false,
+        description: "A protective magical force surrounds you, manifesting as a spectral frost that covers you and your gear. You gain 5 temporary hit points for the duration. If a creature hits you with a melee attack while you have these hit points, the creature takes 5 cold damage. When cast with a higher level slot, both the temporary hit points and cold damage increase by 5 per slot level above 1st.".to_string(),
+        damage_dice: Some("5".to_string()), // Flat damage, not dice
+        damage_type: Some(DamageType::Cold),
+        damage_scaling: DamageScaling::PerSlotLevel { extra_dice: "5".to_string() },
+        healing_dice: None,
+        save_type: None,
+        save_effect: None,
+        attack_type: None,
+        area_of_effect: AreaOfEffect::None,
+        classes: vec![SpellClass::Warlock],
+    });
+
+    db.insert("charm person".to_string(), SpellData {
+        name: "Charm Person".to_string(),
+        level: 1,
+        school: SpellSchool::Enchantment,
+        casting_time: CastingTime::Action,
+        range: SpellRange::Feet(30),
+        components: Components::vs(),
+        duration: SpellDuration::Hours(1),
+        concentration: false,
+        ritual: false,
+        description: "You attempt to charm a humanoid you can see within range. It must make a Wisdom saving throw, with advantage if you or your companions are fighting it. If it fails, it is charmed by you until the spell ends or until you or your companions do anything harmful to it. The charmed creature regards you as a friendly acquaintance.".to_string(),
+        damage_dice: None,
+        damage_type: None,
+        damage_scaling: DamageScaling::None,
+        healing_dice: None,
+        save_type: Some(Ability::Wisdom),
+        save_effect: Some("not charmed".to_string()),
+        attack_type: None,
+        area_of_effect: AreaOfEffect::None,
+        classes: vec![SpellClass::Bard, SpellClass::Druid, SpellClass::Sorcerer, SpellClass::Warlock, SpellClass::Wizard],
+    });
+
     // ========================================================================
     // 2ND LEVEL SPELLS
     // ========================================================================

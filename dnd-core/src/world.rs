@@ -724,6 +724,8 @@ pub struct ClassResources {
     pub rage_active: bool,
     /// Rounds remaining in current rage (rage ends after 1 minute = 10 rounds)
     pub rage_rounds_remaining: Option<u8>,
+    /// Current rage damage bonus (+2/+3/+4 based on level)
+    pub rage_damage_bonus: i8,
 
     // Monk
     /// Current ki points (called "Monk's Focus" in SRD 5.2)
@@ -1709,6 +1711,17 @@ impl Character {
         self.conditions
             .iter()
             .any(|c| std::mem::discriminant(&c.condition) == std::mem::discriminant(&condition))
+    }
+
+    /// Add a condition if not already present. Returns true if the condition was added.
+    pub fn add_condition(&mut self, condition: Condition, source: impl Into<String>) -> bool {
+        if self.has_condition(condition) {
+            false
+        } else {
+            self.conditions
+                .push(ActiveCondition::new(condition, source));
+            true
+        }
     }
 
     pub fn passive_perception(&self) -> i8 {

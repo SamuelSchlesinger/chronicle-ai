@@ -547,5 +547,22 @@ pub fn process_effect(
                 time,
             );
         }
+
+        Effect::RageStarted { damage_bonus, .. } => {
+            app_state.add_narrative(
+                format!("RAGE! +{damage_bonus} damage to melee attacks, resistance to physical damage"),
+                NarrativeType::System,
+                time,
+            );
+            app_state.set_status("Raging!".to_string(), time);
+        }
+
+        Effect::RageEnded { reason, .. } => {
+            app_state.add_narrative(
+                format!("Rage ended: {reason}"),
+                NarrativeType::System,
+                time,
+            );
+        }
     }
 }

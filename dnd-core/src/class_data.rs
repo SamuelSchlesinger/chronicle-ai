@@ -290,18 +290,19 @@ impl CharacterClass {
             CharacterClass::Rogue => ClassData {
                 saving_throws: [Ability::Dexterity, Ability::Intelligence],
                 skill_count: 4,
+                // Ordered with most iconic rogue skills first for auto-selection
                 skill_options: &[
+                    Skill::Stealth,
+                    Skill::Perception,
+                    Skill::SleightOfHand,
                     Skill::Acrobatics,
-                    Skill::Athletics,
                     Skill::Deception,
+                    Skill::Investigation,
                     Skill::Insight,
                     Skill::Intimidation,
-                    Skill::Investigation,
-                    Skill::Perception,
                     Skill::Performance,
                     Skill::Persuasion,
-                    Skill::SleightOfHand,
-                    Skill::Stealth,
+                    Skill::Athletics,
                 ],
                 base_hp: 8,
                 level_1_features: vec![

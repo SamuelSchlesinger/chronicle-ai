@@ -392,8 +392,7 @@ impl CharacterBuilder {
                     }
                     CharacterClass::Warlock => {
                         // Warlocks know 2 spells at level 1
-                        // Using shared spells since Hex isn't in the DB yet
-                        vec!["Charm Person".to_string(), "Hellish Rebuke".to_string()]
+                        vec!["Hex".to_string(), "Hellish Rebuke".to_string()]
                     }
                     CharacterClass::Bard => {
                         vec![

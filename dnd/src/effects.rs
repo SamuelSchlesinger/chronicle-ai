@@ -434,6 +434,21 @@ pub fn process_effect(app: &mut App, effect: &Effect) {
                 NarrativeType::System,
             );
         }
+
+        Effect::RageStarted { damage_bonus, .. } => {
+            app.add_narrative(
+                format!("RAGE! +{damage_bonus} damage to melee attacks, resistance to physical damage"),
+                NarrativeType::System,
+            );
+            app.set_status("Raging!".to_string());
+        }
+
+        Effect::RageEnded { reason, .. } => {
+            app.add_narrative(
+                format!("Rage ended: {reason}"),
+                NarrativeType::System,
+            );
+        }
     }
 }
 

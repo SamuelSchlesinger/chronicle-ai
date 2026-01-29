@@ -10,7 +10,7 @@
 //! independent of AI decision-making.
 
 use crate::dice::{self, Advantage, DiceExpression, RollResult};
-use crate::world::{Ability, ActiveCondition, CharacterId, Combatant, Condition, GameWorld, Item, ItemType, Skill};
+use crate::world::{Ability, CharacterId, Combatant, Condition, GameWorld, Item, ItemType, Skill};
 use serde::{Deserialize, Serialize};
 
 /// An intent represents what a character wants to do.
@@ -599,6 +599,18 @@ pub enum Effect {
         resource_name: String,
         description: String,
     },
+
+    /// Barbarian rage started
+    RageStarted {
+        character_id: CharacterId,
+        damage_bonus: i8,
+    },
+
+    /// Barbarian rage ended
+    RageEnded {
+        character_id: CharacterId,
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -898,6 +910,15 @@ impl RulesEngine {
         let str_mod = attacker.ability_scores.modifier(Ability::Strength);
         let dex_mod = attacker.ability_scores.modifier(Ability::Dexterity);
 
+        // Track if this is a strength-based melee attack (for rage bonus)
+        let is_strength_melee = if is_ranged {
+            false
+        } else if is_finesse {
+            str_mod >= dex_mod // Using STR for finesse weapon
+        } else {
+            true
+        };
+
         let ability_mod = if is_ranged {
             dex_mod
         } else if is_finesse {
@@ -933,7 +954,14 @@ impl RulesEngine {
                 is_critical: attack_roll.is_critical(),
             });
 
-            // Roll damage with ability modifier
+            // Roll damage with ability modifier and rage bonus (if applicable)
+            let rage_bonus = if is_strength_melee && attacker.class_resources.rage_active {
+                attacker.class_resources.rage_damage_bonus as i32
+            } else {
+                0
+            };
+            let total_mod = ability_mod as i32 + rage_bonus;
+
             let damage_expr = if attack_roll.is_critical() {
                 // Critical hit: double the number of dice
                 // Parse "XdY" and produce "2XdY"
@@ -946,9 +974,9 @@ impl RulesEngine {
                     let flat: i32 = damage_dice.parse().unwrap_or(1);
                     format!("{}", flat * 2)
                 };
-                format!("{doubled_dice}+{ability_mod}")
+                format!("{doubled_dice}+{total_mod}")
             } else {
-                format!("{damage_dice}+{ability_mod}")
+                format!("{damage_dice}+{total_mod}")
             };
             let damage_roll = dice::roll(&damage_expr).unwrap_or_else(|_| dice::roll("1d4").unwrap());
             resolution = resolution.with_effect(Effect::DiceRolled {
@@ -2446,6 +2474,10 @@ impl RulesEngine {
             "{} enters a RAGE! Gains: advantage on STR checks/saves, +{} rage damage to melee attacks, resistance to bludgeoning/piercing/slashing damage. Cannot cast spells or concentrate while raging.",
             character.name, rage_damage
         ))
+        .with_effect(Effect::RageStarted {
+            character_id: world.player_character.id,
+            damage_bonus: rage_damage,
+        })
         .with_effect(Effect::ClassResourceUsed {
             character_name: character.name.clone(),
             resource_name: "Rage".to_string(),
@@ -2478,6 +2510,10 @@ impl RulesEngine {
         };
 
         Resolution::new(format!("{}'s rage ends. {}", character.name, reason_text))
+            .with_effect(Effect::RageEnded {
+                character_id: world.player_character.id,
+                reason: reason_text.to_string(),
+            })
             .with_effect(Effect::ClassResourceUsed {
                 character_name: character.name.clone(),
                 resource_name: "Rage".to_string(),
@@ -3057,12 +3093,11 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
                 world.player_character.hit_points.heal(*amount);
             }
 
-            // Add Unconscious condition if dropped to 0
+            // Add Unconscious condition if dropped to 0 (only if not already unconscious)
             if *dropped_to_zero {
-                world.player_character.conditions.push(ActiveCondition::new(
-                    Condition::Unconscious,
-                    "Dropped to 0 HP",
-                ));
+                world
+                    .player_character
+                    .add_condition(Condition::Unconscious, "Dropped to 0 HP");
             }
 
             // Remove Unconscious condition and reset death saves if healed above 0
@@ -3084,10 +3119,7 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
         Effect::ConditionApplied {
             condition, source, ..
         } => {
-            world
-                .player_character
-                .conditions
-                .push(ActiveCondition::new(*condition, source.clone()));
+            world.player_character.add_condition(*condition, source.clone());
         }
         Effect::ConditionRemoved { condition, .. } => {
             world
@@ -3352,6 +3384,16 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
             // Class resource usage is tracked in ClassResources
             // The actual state changes are handled by the DM based on the effect
             // This effect is informational for the narrative/UI
+        }
+        Effect::RageStarted { damage_bonus, .. } => {
+            world.player_character.class_resources.rage_active = true;
+            world.player_character.class_resources.rage_damage_bonus = *damage_bonus;
+            world.player_character.class_resources.rage_rounds_remaining = Some(10); // 1 minute = 10 rounds
+        }
+        Effect::RageEnded { .. } => {
+            world.player_character.class_resources.rage_active = false;
+            world.player_character.class_resources.rage_damage_bonus = 0;
+            world.player_character.class_resources.rage_rounds_remaining = None;
         }
     }
 }
