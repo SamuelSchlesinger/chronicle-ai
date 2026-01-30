@@ -28,6 +28,8 @@
 
 A D&D 5e game with an AI Dungeon Master powered by Claude. Create a character and embark on procedurally-generated adventures with an AI that remembers your story, tracks consequences, and adapts to your choices.
 
+**Bring Your Own Key** — This is a local application that runs on your machine. You provide your own [Anthropic API key](https://console.anthropic.com/), so you control your costs and your data never passes through a third party.
+
 ## Quick Start
 
 **1. Get an API key** from [Anthropic Console](https://console.anthropic.com/)
