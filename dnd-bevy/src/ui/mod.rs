@@ -10,7 +10,7 @@ use bevy_egui::{egui, EguiContexts};
 use crate::character_creation::{CharacterCreation, ReadyToStart};
 use crate::state::{
     ActiveOverlay, AppState, CharacterSaveList, GamePhase, GameSaveInfo, GameSaveList,
-    PendingCharacterList, PendingGameList, PendingGameLoad,
+    OnboardingState, PendingCharacterList, PendingGameList, PendingGameLoad,
 };
 
 /// Main UI system - renders all egui panels.
@@ -24,6 +24,7 @@ pub fn main_ui_system(
     mut char_creation: Option<ResMut<CharacterCreation>>,
     mut char_save_list: Option<ResMut<CharacterSaveList>>,
     mut game_save_list: Option<ResMut<GameSaveList>>,
+    mut onboarding: ResMut<OnboardingState>,
     time: Res<Time>,
 ) {
     let ctx = contexts.ctx_mut();
@@ -33,10 +34,18 @@ pub fn main_ui_system(
 
     match game_phase.get() {
         GamePhase::MainMenu => {
+            // Show onboarding on first launch
+            if !onboarding.has_seen && app_state.overlay == ActiveOverlay::None {
+                app_state.overlay = ActiveOverlay::Onboarding;
+            }
+
             panels::render_main_menu(ctx, &mut next_phase, &mut app_state);
 
             // Render overlays (Settings and LoadCharacter can be accessed from main menu)
             match app_state.overlay {
+                ActiveOverlay::Onboarding => {
+                    overlays::render_onboarding(ctx, &mut onboarding, &mut app_state);
+                }
                 ActiveOverlay::Settings => {
                     overlays::render_settings(ctx, &mut app_state);
                 }
@@ -152,7 +161,7 @@ pub fn main_ui_system(
                         next_phase.set(GamePhase::MainMenu);
                     }
                 }
-                ActiveOverlay::LoadCharacter | ActiveOverlay::LoadGame => {
+                ActiveOverlay::LoadCharacter | ActiveOverlay::LoadGame | ActiveOverlay::Onboarding => {
                     // These overlays are only used in MainMenu, close them if we're playing
                     app_state.overlay = ActiveOverlay::None;
                 }

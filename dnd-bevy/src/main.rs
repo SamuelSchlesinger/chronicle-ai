@@ -19,7 +19,7 @@ use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 
 use crate::character_creation::{CharacterCreation, ReadyToStart};
-use crate::state::{AppState, CharacterSaveList, GamePhase, GameSaveList, PendingSession};
+use crate::state::{AppState, CharacterSaveList, GamePhase, GameSaveList, OnboardingState, PendingSession};
 use dnd_core::{GameSession, SessionConfig};
 
 fn main() {
@@ -46,6 +46,7 @@ fn main() {
         .init_resource::<AppState>()
         .init_resource::<CharacterSaveList>()
         .init_resource::<GameSaveList>()
+        .insert_resource(OnboardingState::load())
         // Startup systems
         .add_systems(Startup, setup)
         // State transition systems

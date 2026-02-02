@@ -4,7 +4,7 @@
 
 use bevy::prelude::*;
 use bevy_egui::egui;
-use dnd_core::spells::{spells_by_level, SpellClass};
+use dnd_core::spells::{get_spell, spells_by_level, SpellClass};
 use dnd_core::world::{
     Ability, AbilityScores, Background, Character, CharacterClass, ClassLevel, HitPoints,
     ProficiencyLevel, Race, RaceType, Skill, SlotInfo, Speed, SpellSlots, SpellcastingData,
@@ -875,15 +875,19 @@ fn render_spells_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
                     };
 
                     if can_select {
-                        if ui.selectable_label(is_selected, &label).clicked() {
+                        let response = ui.selectable_label(is_selected, &label);
+                        if response.clicked() {
                             if is_selected {
                                 creation.selected_cantrips.retain(|s| s != &cantrip);
                             } else {
-                                creation.selected_cantrips.push(cantrip);
+                                creation.selected_cantrips.push(cantrip.clone());
                             }
                         }
+                        // Show spell tooltip on hover
+                        show_spell_tooltip(&response, &cantrip);
                     } else {
-                        ui.add_enabled(false, egui::Label::new(&label));
+                        let response = ui.add_enabled(false, egui::Label::new(&label));
+                        show_spell_tooltip(&response, &cantrip);
                     }
                 }
             });
@@ -921,15 +925,19 @@ fn render_spells_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
                     };
 
                     if can_select {
-                        if ui.selectable_label(is_selected, &label).clicked() {
+                        let response = ui.selectable_label(is_selected, &label);
+                        if response.clicked() {
                             if is_selected {
                                 creation.selected_spells.retain(|s| s != &spell);
                             } else {
-                                creation.selected_spells.push(spell);
+                                creation.selected_spells.push(spell.clone());
                             }
                         }
+                        // Show spell tooltip on hover
+                        show_spell_tooltip(&response, &spell);
                     } else {
-                        ui.add_enabled(false, egui::Label::new(&label));
+                        let response = ui.add_enabled(false, egui::Label::new(&label));
+                        show_spell_tooltip(&response, &spell);
                     }
                 }
             });
@@ -1054,6 +1062,115 @@ fn render_review_step(
                     creation.error_message = Some(format!("Failed to create character: {e}"));
                 }
             }
+        }
+    });
+}
+
+/// Show a tooltip with spell details when hovering over a spell.
+fn show_spell_tooltip(response: &egui::Response, spell_name: &str) {
+    response.clone().on_hover_ui(|ui| {
+        ui.set_max_width(350.0);
+
+        if let Some(spell) = get_spell(spell_name) {
+            // Spell name
+            ui.label(
+                egui::RichText::new(&spell.name)
+                    .strong()
+                    .color(egui::Color32::from_rgb(100, 180, 255)),
+            );
+
+            // Level and school
+            let level_text = if spell.level == 0 {
+                format!("{} cantrip", spell.school.name())
+            } else {
+                let suffix = match spell.level {
+                    1 => "st",
+                    2 => "nd",
+                    3 => "rd",
+                    _ => "th",
+                };
+                format!("{}{}-level {}", spell.level, suffix, spell.school.name())
+            };
+            ui.label(
+                egui::RichText::new(level_text)
+                    .italics()
+                    .color(egui::Color32::LIGHT_GRAY),
+            );
+
+            if spell.ritual {
+                ui.label(
+                    egui::RichText::new("(ritual)")
+                        .italics()
+                        .color(egui::Color32::from_rgb(180, 140, 255)),
+                );
+            }
+
+            ui.separator();
+
+            // Spell properties
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Casting Time:").small().strong());
+                ui.label(egui::RichText::new(spell.casting_time.description()).small());
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Range:").small().strong());
+                ui.label(egui::RichText::new(spell.range.description()).small());
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Components:").small().strong());
+                ui.label(egui::RichText::new(spell.components.description()).small());
+            });
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Duration:").small().strong());
+                let duration_text = if spell.concentration {
+                    format!("Concentration, {}", spell.duration.description())
+                } else {
+                    spell.duration.description().to_string()
+                };
+                ui.label(egui::RichText::new(duration_text).small());
+            });
+
+            ui.separator();
+
+            // Description (truncated if too long)
+            let description = if spell.description.len() > 300 {
+                format!("{}...", &spell.description[..300])
+            } else {
+                spell.description.clone()
+            };
+            ui.label(egui::RichText::new(description).small());
+
+            // Combat info
+            if spell.damage_dice.is_some() || spell.healing_dice.is_some() {
+                ui.separator();
+                if let Some(ref dice) = spell.damage_dice {
+                    let damage_text = if let Some(ref dtype) = spell.damage_type {
+                        format!("Damage: {} {}", dice, dtype.name())
+                    } else {
+                        format!("Damage: {}", dice)
+                    };
+                    ui.label(
+                        egui::RichText::new(damage_text)
+                            .small()
+                            .color(egui::Color32::from_rgb(255, 100, 100)),
+                    );
+                }
+                if let Some(ref dice) = spell.healing_dice {
+                    ui.label(
+                        egui::RichText::new(format!("Healing: {}", dice))
+                            .small()
+                            .color(egui::Color32::from_rgb(100, 255, 100)),
+                    );
+                }
+            }
+        } else {
+            ui.label(spell_name);
+            ui.label(
+                egui::RichText::new("Spell details not available")
+                    .small()
+                    .italics()
+                    .color(egui::Color32::GRAY),
+            );
         }
     });
 }
