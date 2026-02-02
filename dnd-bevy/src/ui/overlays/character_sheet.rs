@@ -122,7 +122,8 @@ pub fn render_character_sheet(ctx: &egui::Context, app_state: &mut AppState) {
                         };
 
                         ui.label(egui::RichText::new(marker).color(color));
-                        ui.label(skill.name());
+                        let response = ui.label(skill.name());
+                        show_skill_tooltip(&response, skill);
                     });
                 }
             });
@@ -249,4 +250,31 @@ pub fn render_character_sheet(ctx: &egui::Context, app_state: &mut AppState) {
                     .color(egui::Color32::GRAY),
             );
         });
+}
+
+/// Show a tooltip with skill details when hovering over a skill.
+fn show_skill_tooltip(response: &egui::Response, skill: &dnd_core::world::Skill) {
+    response.clone().on_hover_ui(|ui| {
+        ui.set_max_width(300.0);
+
+        // Skill name
+        ui.label(
+            egui::RichText::new(skill.name())
+                .strong()
+                .color(egui::Color32::from_rgb(100, 200, 100)),
+        );
+
+        // Associated ability
+        let ability = skill.ability();
+        ui.label(
+            egui::RichText::new(format!("{} ({})", ability.name(), ability.abbreviation()))
+                .italics()
+                .color(egui::Color32::GRAY),
+        );
+
+        ui.separator();
+
+        // Description - use wrap() to ensure full text is shown
+        ui.add(egui::Label::new(skill.description()).wrap());
+    });
 }

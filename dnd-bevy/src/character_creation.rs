@@ -314,6 +314,7 @@ pub fn render_character_creation(
     next_phase: &mut NextState<GamePhase>,
     app_state: &mut AppState,
     commands: &mut Commands,
+    saves_path: &str,
 ) {
     egui::CentralPanel::default().show(ctx, |ui| {
         // Progress bar - conditionally include Spells step for spellcasters
@@ -363,22 +364,31 @@ pub fn render_character_creation(
         ui.columns(2, |columns| {
             // Left column: current step content
             match creation.step {
-                CreationStep::Name => render_name_step(&mut columns[0], creation),
-                CreationStep::Race => render_race_step(&mut columns[0], creation),
-                CreationStep::Class => render_class_step(&mut columns[0], creation),
-                CreationStep::Background => render_background_step(&mut columns[0], creation),
+                CreationStep::Name => render_name_step(&mut columns[0], creation, app_state),
+                CreationStep::Race => render_race_step(&mut columns[0], creation, app_state),
+                CreationStep::Class => render_class_step(&mut columns[0], creation, app_state),
+                CreationStep::Background => {
+                    render_background_step(&mut columns[0], creation, app_state)
+                }
                 CreationStep::AbilityMethod => {
-                    render_ability_method_step(&mut columns[0], creation)
+                    render_ability_method_step(&mut columns[0], creation, app_state)
                 }
                 CreationStep::AbilityScores => {
-                    render_ability_scores_step(&mut columns[0], creation)
+                    render_ability_scores_step(&mut columns[0], creation, app_state)
                 }
-                CreationStep::Skills => render_skills_step(&mut columns[0], creation),
-                CreationStep::Spells => render_spells_step(&mut columns[0], creation),
-                CreationStep::Backstory => render_backstory_step(&mut columns[0], creation),
-                CreationStep::Review => {
-                    render_review_step(&mut columns[0], creation, next_phase, app_state, commands)
+                CreationStep::Skills => render_skills_step(&mut columns[0], creation, app_state),
+                CreationStep::Spells => render_spells_step(&mut columns[0], creation, app_state),
+                CreationStep::Backstory => {
+                    render_backstory_step(&mut columns[0], creation, app_state)
                 }
+                CreationStep::Review => render_review_step(
+                    &mut columns[0],
+                    creation,
+                    next_phase,
+                    app_state,
+                    commands,
+                    saves_path,
+                ),
             }
 
             // Right column: character preview
@@ -395,6 +405,7 @@ pub fn render_character_creation(
         ui.separator();
         ui.horizontal(|ui| {
             if creation.step != CreationStep::Name && ui.button("< Back").clicked() {
+                app_state.play_click();
                 if let Some(prev) = creation.step.prev() {
                     creation.step = prev;
                     creation.error_message = None;
@@ -403,6 +414,7 @@ pub fn render_character_creation(
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("Cancel").clicked() {
+                    app_state.play_click();
                     next_phase.set(GamePhase::MainMenu);
                 }
             });
@@ -410,7 +422,7 @@ pub fn render_character_creation(
     });
 }
 
-fn render_name_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_name_step(ui: &mut egui::Ui, creation: &mut CharacterCreation, app_state: &mut AppState) {
     ui.label("What is your character's name?");
     ui.add_space(10.0);
 
@@ -424,16 +436,18 @@ fn render_name_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
         && ui.input(|i| i.key_pressed(egui::Key::Enter))
         && !creation.name.trim().is_empty()
     {
+        app_state.play_click();
         creation.step = CreationStep::Race;
     }
 
     ui.add_space(10.0);
     if !creation.name.trim().is_empty() && ui.button("Next >").clicked() {
+        app_state.play_click();
         creation.step = CreationStep::Race;
     }
 }
 
-fn render_race_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_race_step(ui: &mut egui::Ui, creation: &mut CharacterCreation, app_state: &mut AppState) {
     egui::ScrollArea::vertical().show(ui, |ui| {
         for race in RaceType::all() {
             let is_selected = creation.race == Some(*race);
@@ -447,6 +461,7 @@ fn render_race_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
             }
 
             if response.double_clicked() && creation.race.is_some() {
+                app_state.play_click();
                 creation.step = CreationStep::Class;
             }
         }
@@ -454,11 +469,16 @@ fn render_race_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
 
     ui.add_space(10.0);
     if creation.race.is_some() && ui.button("Next >").clicked() {
+        app_state.play_click();
         creation.step = CreationStep::Class;
     }
 }
 
-fn render_class_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_class_step(
+    ui: &mut egui::Ui,
+    creation: &mut CharacterCreation,
+    app_state: &mut AppState,
+) {
     egui::ScrollArea::vertical().show(ui, |ui| {
         for class in CharacterClass::all() {
             let is_selected = creation.class == Some(*class);
@@ -472,6 +492,7 @@ fn render_class_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
             }
 
             if response.double_clicked() && creation.class.is_some() {
+                app_state.play_click();
                 creation.step = CreationStep::Background;
             }
         }
@@ -479,11 +500,16 @@ fn render_class_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
 
     ui.add_space(10.0);
     if creation.class.is_some() && ui.button("Next >").clicked() {
+        app_state.play_click();
         creation.step = CreationStep::Background;
     }
 }
 
-fn render_background_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_background_step(
+    ui: &mut egui::Ui,
+    creation: &mut CharacterCreation,
+    app_state: &mut AppState,
+) {
     egui::ScrollArea::vertical().show(ui, |ui| {
         for bg in Background::all() {
             let is_selected = creation.background == Some(*bg);
@@ -494,6 +520,7 @@ fn render_background_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
             }
 
             if response.double_clicked() && creation.background.is_some() {
+                app_state.play_click();
                 creation.step = CreationStep::AbilityMethod;
             }
         }
@@ -501,11 +528,16 @@ fn render_background_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
 
     ui.add_space(10.0);
     if creation.background.is_some() && ui.button("Next >").clicked() {
+        app_state.play_click();
         creation.step = CreationStep::AbilityMethod;
     }
 }
 
-fn render_ability_method_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_ability_method_step(
+    ui: &mut egui::Ui,
+    creation: &mut CharacterCreation,
+    app_state: &mut AppState,
+) {
     for method in AbilityMethod::all() {
         let is_selected = creation.ability_method == *method;
         let response = ui.selectable_label(
@@ -534,17 +566,23 @@ fn render_ability_method_step(ui: &mut egui::Ui, creation: &mut CharacterCreatio
         }
 
         if response.double_clicked() {
+            app_state.play_click();
             creation.step = CreationStep::AbilityScores;
         }
     }
 
     ui.add_space(10.0);
     if ui.button("Next >").clicked() {
+        app_state.play_click();
         creation.step = CreationStep::AbilityScores;
     }
 }
 
-fn render_ability_scores_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_ability_scores_step(
+    ui: &mut egui::Ui,
+    creation: &mut CharacterCreation,
+    app_state: &mut AppState,
+) {
     match creation.ability_method {
         AbilityMethod::StandardArray => render_standard_array(ui, creation),
         AbilityMethod::PointBuy => render_point_buy(ui, creation),
@@ -561,6 +599,7 @@ fn render_ability_scores_step(ui: &mut egui::Ui, creation: &mut CharacterCreatio
 
     ui.add_space(10.0);
     if complete && ui.button("Next >").clicked() {
+        app_state.play_click();
         // Set up skills for next step
         if let Some(class) = creation.class {
             let data = class.data();
@@ -735,7 +774,11 @@ fn render_rolled(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
     });
 }
 
-fn render_skills_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_skills_step(
+    ui: &mut egui::Ui,
+    creation: &mut CharacterCreation,
+    app_state: &mut AppState,
+) {
     ui.label(format!(
         "Select {} skills ({}/{} selected):",
         creation.required_skill_count,
@@ -756,16 +799,16 @@ fn render_skills_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
                 format!("[ ] {}", skill.name())
             };
 
-            if ui
-                .add_enabled(can_select, egui::SelectableLabel::new(is_selected, text))
-                .clicked()
-            {
+            let response =
+                ui.add_enabled(can_select, egui::SelectableLabel::new(is_selected, text));
+            if response.clicked() {
                 if is_selected {
                     creation.selected_skills.retain(|s| s != skill);
                 } else {
                     creation.selected_skills.push(*skill);
                 }
             }
+            show_skill_tooltip(&response, skill);
         }
     });
 
@@ -773,6 +816,7 @@ fn render_skills_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
     if creation.selected_skills.len() == creation.required_skill_count
         && ui.button("Next >").clicked()
     {
+        app_state.play_click();
         // Check if class is a spellcaster
         if let Some(class) = creation.class {
             if class.is_spellcaster() {
@@ -824,7 +868,11 @@ fn setup_spell_selection(creation: &mut CharacterCreation, class: CharacterClass
     creation.selected_spells.clear();
 }
 
-fn render_spells_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_spells_step(
+    ui: &mut egui::Ui,
+    creation: &mut CharacterCreation,
+    app_state: &mut AppState,
+) {
     let class_name = creation.class.map(|c| c.name()).unwrap_or("Unknown");
 
     ui.label(format!("Choose spells for your {} (Level 1):", class_name));
@@ -947,11 +995,16 @@ fn render_spells_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
     let spells_complete = creation.selected_spells.len() >= creation.required_spell_count;
 
     if cantrips_complete && spells_complete && ui.button("Next >").clicked() {
+        app_state.play_click();
         creation.step = CreationStep::Backstory;
     }
 }
 
-fn render_backstory_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
+fn render_backstory_step(
+    ui: &mut egui::Ui,
+    creation: &mut CharacterCreation,
+    app_state: &mut AppState,
+) {
     ui.label("Write your character's backstory (optional):");
     ui.add_space(5.0);
     ui.label(
@@ -975,10 +1028,12 @@ fn render_backstory_step(ui: &mut egui::Ui, creation: &mut CharacterCreation) {
     ui.add_space(10.0);
     ui.horizontal(|ui| {
         if ui.button("Skip").clicked() {
+            app_state.play_click();
             creation.backstory.clear();
             creation.step = CreationStep::Review;
         }
         if ui.button("Next >").clicked() {
+            app_state.play_click();
             creation.step = CreationStep::Review;
         }
     });
@@ -988,8 +1043,9 @@ fn render_review_step(
     ui: &mut egui::Ui,
     creation: &mut CharacterCreation,
     next_phase: &mut NextState<GamePhase>,
-    _app_state: &mut AppState,
+    app_state: &mut AppState,
     commands: &mut Commands,
+    saves_path: &str,
 ) {
     ui.label("Review your character and begin your adventure!");
     ui.add_space(10.0);
@@ -1008,13 +1064,15 @@ fn render_review_step(
         ui.add_space(5.0);
     }
 
+    let characters_path = format!("{}/characters", saves_path);
     ui.horizontal(|ui| {
         if ui.button("Save Character").clicked() {
+            app_state.play_click();
             match creation.build_character() {
                 Ok(character) => {
                     let saved = dnd_core::SavedCharacter::new(character);
                     let path =
-                        dnd_core::persist::character_save_path("saves/characters", &creation.name);
+                        dnd_core::persist::character_save_path(&characters_path, &creation.name);
 
                     // Spawn async save task
                     let path_clone = path.clone();
@@ -1033,6 +1091,7 @@ fn render_review_step(
         }
 
         if ui.button("Start Adventure!").clicked() {
+            app_state.play_click();
             match creation.build_character() {
                 Ok(character) => {
                     // Store the character ready to start
@@ -1118,13 +1177,8 @@ fn show_spell_tooltip(response: &egui::Response, spell_name: &str) {
 
             ui.separator();
 
-            // Description (truncated if too long)
-            let description = if spell.description.len() > 300 {
-                format!("{}...", &spell.description[..300])
-            } else {
-                spell.description.clone()
-            };
-            ui.label(egui::RichText::new(description).small());
+            // Full description
+            ui.label(egui::RichText::new(&spell.description).small());
 
             // Combat info
             if spell.damage_dice.is_some() || spell.healing_dice.is_some() {
@@ -1158,6 +1212,33 @@ fn show_spell_tooltip(response: &egui::Response, spell_name: &str) {
                     .color(egui::Color32::GRAY),
             );
         }
+    });
+}
+
+/// Show a tooltip with skill details when hovering over a skill.
+fn show_skill_tooltip(response: &egui::Response, skill: &Skill) {
+    response.clone().on_hover_ui(|ui| {
+        ui.set_max_width(300.0);
+
+        // Skill name
+        ui.label(
+            egui::RichText::new(skill.name())
+                .strong()
+                .color(egui::Color32::from_rgb(100, 200, 100)),
+        );
+
+        // Associated ability
+        let ability = skill.ability();
+        ui.label(
+            egui::RichText::new(format!("{} ({})", ability.name(), ability.abbreviation()))
+                .italics()
+                .color(egui::Color32::GRAY),
+        );
+
+        ui.separator();
+
+        // Description - use wrap() to ensure full text is shown
+        ui.add(egui::Label::new(skill.description()).wrap());
     });
 }
 

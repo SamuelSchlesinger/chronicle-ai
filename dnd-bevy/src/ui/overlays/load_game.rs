@@ -27,6 +27,7 @@ pub fn render_load_game(
                 ui.heading("Saved Games");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button("Refresh").clicked() {
+                        app_state.play_click();
                         save_list.saves.clear();
                         save_list.loaded = false;
                         save_list.loading = false;

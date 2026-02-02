@@ -151,6 +151,7 @@ pub fn render_spell_detail(ctx: &egui::Context, app_state: &mut AppState) {
 
             ui.horizontal(|ui| {
                 if ui.button("Close").clicked() {
+                    app_state.play_click();
                     app_state.viewing_spell = None;
                 }
                 ui.label(

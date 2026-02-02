@@ -27,6 +27,7 @@ pub fn render_load_character(
                 ui.heading("Saved Characters");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button("Refresh").clicked() {
+                        app_state.play_click();
                         // Reset to trigger a reload
                         save_list.saves.clear();
                         save_list.loaded = false;

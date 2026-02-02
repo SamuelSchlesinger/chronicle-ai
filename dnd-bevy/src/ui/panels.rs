@@ -98,7 +98,7 @@ pub fn render_main_menu(
 }
 
 /// Render the top bar with title and status.
-pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState) {
+pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState, saves_path: &str) {
     egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
         ui.horizontal(|ui| {
             // Game title / campaign name
@@ -179,7 +179,7 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState) {
                 let load_enabled =
                     !app_state.is_loading && !app_state.is_processing && app_state.has_session();
                 let autosave_path =
-                    dnd_core::persist::auto_save_path("saves", &app_state.world.campaign_name);
+                    dnd_core::persist::auto_save_path(saves_path, &app_state.world.campaign_name);
                 let autosave_exists = autosave_path.exists();
                 if ui
                     .add_enabled(load_enabled && autosave_exists, egui::Button::new("Load"))
@@ -209,7 +209,7 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState) {
                     app_state.play_click();
                     if let Some(tx) = &app_state.request_tx {
                         let path = dnd_core::persist::auto_save_path(
-                            "saves",
+                            saves_path,
                             &app_state.world.campaign_name,
                         );
                         let _ = tx.try_send(WorkerRequest::Save(path));
