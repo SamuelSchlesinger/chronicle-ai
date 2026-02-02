@@ -4,9 +4,9 @@
 
 ---
 
-> *The woman's smile widens, revealing teeth that seem just a bit too sharp.*
+> *"I see you've found the Shadowfell Codex. Most visitors are drawn to the prettier volumes."*
 >
-> *"Another seeker of forbidden knowledge, I presume? How... interesting."*
+> *A knowing smile crosses her weathered features. "That particular tome has been the subject of much... debate among our scholars."*
 >
 > — [The Wizard's Bargain](docs/transcripts/wizards_bargain.md)
 
@@ -39,12 +39,8 @@ cargo run -p chronicler
 
 | | |
 |---|---|
-| [The Goblin Ambush](docs/transcripts/goblin_ambush.md) | A fighter springs a trap. Death saves ensue. |
-| [Tavern Trouble](docs/transcripts/tavern_trouble.md) | A bard's song uncovers a deadly mystery. |
-| [The Wizard's Bargain](docs/transcripts/wizards_bargain.md) | An elf seeks forbidden knowledge. |
-| [Into the Crypt](docs/transcripts/into_the_crypt.md) | A cleric faces the restless dead. |
-| [The Heist](docs/transcripts/the_heist.md) | A rogue infiltrates a merchant lord's manor. |
-| [Blood and Thunder](docs/transcripts/blood_and_thunder.md) | A barbarian faces death in the arena. |
+| [The Goblin Ambush](docs/transcripts/goblin_ambush.md) | A dwarf fighter springs a trap. Death saves ensue. |
+| [The Wizard's Bargain](docs/transcripts/wizards_bargain.md) | An elf wizard seeks forbidden knowledge in ancient archives. |
 
 ## Under the Hood
 

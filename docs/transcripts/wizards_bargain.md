@@ -14,20 +14,17 @@
 
 **Player:** I search the ancient shelves for any texts on planar magic.
 
-**DM:** You run your fingers along the dusty spines of countless tomes, squinting in the dim light filtering through grimy windows. The shelves stretch impossibly high, filled with volumes that seem to whisper secrets from ages past.
+**DM:** You approach the towering shelves that line the ancient archive, their wooden frames dark with age and dust. Countless tomes, scrolls, and bound manuscripts crowd every available space, their spines bearing titles in languages both familiar and arcane.
+Your trained eye quickly identifies the organizational system used in this section of the archives. Moving methodically through the shelves, you trace your finger along leather-bound spines until you discover a promising section devoted to extraplanar studies.
 
-Your trained eye as a sage guides you through the chaotic organization, looking for the telltale symbols and arcane script that would indicate planar studies...
-Rolling Investigation... 7 vs DC 13 - not quite!
+After several minutes of careful searching, you uncover three texts that catch your attention:
 
-The ancient filing system proves more cryptic than you anticipated. Dust motes dance in the air as you pull tome after tome from the shelves, but most contain mundane historical accounts or basic magical theory. The planar magic texts, if they exist here, are either well-hidden or filed under some archaic system you haven't yet deciphered.
+**"Fundamentals of Planar Theory"** - A well-worn primer with basic diagrams of the planes and their connections. The binding suggests frequent use by students.
 
-As you replace a particularly heavy volume on "Agricultural Enchantments of the Third Era," you notice something peculiar. Several books on the higher shelves have been recently disturbed - there are clean rectangles in the dust where volumes once sat.
+**"Dimensional Rifts and Their Manifestations"** - A more advanced text bound in dark blue leather, with silver clasps. Several bookmarks protrude from its pages.
 
-Someone else has been searching these archives recently, and they were looking for something specific.
-
-A soft creaking sound echoes from deeper in the archives, as if someone - or something - is moving among the distant stacks.
-
-What do you do?
+**"The Shadowfell Codex"** - An ominous black tome that seems to absorb light around it. Strange symbols are etched into its cover, and it feels unnaturally cold to the touch.
+Which of these texts would you like to examine more closely, or would you prefer to continue searching for something more specific?
 
 ---
 
@@ -35,18 +32,16 @@ What do you do?
 
 **Player:** I examine the strange tome more closely. What language is it written in?
 
-**DM:** You pull the hefty "Agricultural Enchantments of the Third Era" back from the shelf and examine it more carefully. The leather binding is worn but well-preserved, and as you open the cover, flowing script reveals itself across yellowed pages.
-Rolling Arcana... 5 vs DC 12 - not quite!
+**DM:** You carefully lift the Shadowfell Codex from its resting place, immediately noticing how the temperature around your hands drops several degrees. The book feels heavier than it should for its size, as if it contains more than mere parchment and ink.
+Your arcane training serves you well as you examine the tome's cover and binding. The primary text is written in **Abyssal**, the harsh language of demons and chaotic evil outsiders. However, interwoven throughout are passages in **Common** and what appears to be **Draconic** - suggesting this was either translated from multiple sources or compiled by someone with knowledge of several planar languages.
 
-The script is elegant but unfamiliar to you. It's definitely not Common, nor any of the typical scholarly languages you'd expect in a human archive. The letters flow together in graceful curves that remind you vaguely of Elvish, but the structure is all wrong.
+The strange symbols etched into the cover are **infernal runes** - not demonic Abyssal script, but the more ordered diabolic writing of the Nine Hells. This curious mixture of chaotic and lawful evil influences suggests the tome deals with multiple lower planes, not just the Shadowfell as its title implies.
 
-What catches your attention more than the language, however, is that this book feels oddly warm to the touch, and some of the ink seems to shimmer slightly in the dim light. The agricultural enchantments described in the illustrations - showing farmers tending to impossibly verdant crops under strange, multi-colored skies - don't look like they belong to this plane at all.
+As you hold the book, you notice that some of the silver clasps bear tiny engravings of what look like **gateways or portals** - circular designs with geometric patterns that seem to shift slightly when you're not looking directly at them.
 
-The creaking sound from deeper in the archives grows closer, accompanied now by what sounds like pages rustling. Someone is definitely moving through the stacks, and they're getting nearer to your location.
+The book feels ancient and powerful. Opening it might reveal valuable planar magic knowledge... but such tomes often contain more than just academic theory.
 
-You could try to decipher more of this mysterious tome, investigate those disturbed spaces on the higher shelves, or deal with whoever is approaching through the archives.
-
-What's your next move?
+Do you wish to open the Shadowfell Codex, or would you prefer to examine one of the other texts first?
 
 ---
 
@@ -54,20 +49,17 @@ What's your next move?
 
 **Player:** I attempt to read the inscription on the cover using my knowledge of arcane languages.
 
-**DM:** You focus intently on the cover's inscription, drawing upon your years of study as a sage. The arcane symbols seem to dance before your eyes as you trace their flowing patterns with your finger...
-Rolling Arcana... 6 vs DC 15 - not quite!
+**DM:** You lean in close, your elven eyes tracing the intricate patterns of Abyssal, Draconic, and infernal script that wind across the tome's cover like writhing serpents. The languages shift and blur together in a way that makes your head ache slightly.
 
-The flowing script continues to elude your understanding. While you recognize some of the fundamental arcane symbols - a few characters that denote magical transformation, and what might be elemental markers - the language remains frustratingly opaque. It's as if the words are written in a dialect of magic itself, one that predates the standardized arcane terminology you learned in your studies.
+The Abyssal text seems to be the title - something about "shadows" and "crossing" - but the chaotic nature of the script makes it difficult to parse the exact meaning. The Draconic passages appear to be warnings or cautions, but the archaic dialect is unlike anything in your studies.
 
-The warmth from the book seems to pulse gently against your palms, almost as if responding to your attempts to read it. One symbol near the bottom of the cover briefly flickers with a faint golden light before dimming again.
+Most frustrating are the infernal runes. They pulse with a faint, dark energy that seems to resist your attempts to comprehend them. Each time you think you're beginning to understand a symbol, it seems to shift slightly, as if the very act of observation changes its meaning.
 
-The footsteps in the archives have stopped. 
+After several minutes of concentrated effort, you're left with only fragments: words like "gateway," "price," and "binding" scattered throughout the text, but their context remains maddeningly unclear.
 
-An uncomfortable silence settles over the dusty stacks, broken only by your own breathing. Whoever was moving through the archives knows you're here now - and they're listening.
+The tome seems to be deliberately obscured - either enchanted to resist casual reading, or written in such archaic and specialized terminology that it requires expertise beyond your current training.
 
-A voice calls out from somewhere among the towering shelves, echoing strangely in the confined space: "Another seeker of forbidden knowledge, I presume? How... interesting."
-
-What do you do?
+You could attempt to open the book itself, seek out the other texts for comparison, or perhaps look for reference materials that might help you decipher these inscriptions. What would you like to do?
 
 ---
 
@@ -75,18 +67,17 @@ What do you do?
 
 **Player:** Who approaches? I turn to face the stranger, one hand ready to cast Shield.
 
-**DM:** You quickly tuck the mysterious tome under one arm and turn toward the voice, your free hand already tracing the somatic patterns for Shield in case you need to cast it quickly.
+**DM:** You spin around, your hand instinctively moving to the component pouch at your side as your magical training kicks in. The ancient archive's silence is broken by the soft shuffle of footsteps on dusty stone.
 
-From between the towering shelves emerges a figure that makes you instinctively tense. A human woman in her middle years approaches, but there's something unsettling about her appearance. Her robes are fine quality but seem to absorb light rather than reflect it, and her eyes hold an intensity that speaks of dangerous knowledge.
+From between the towering shelves emerges an elderly human woman, her silver hair pulled back in a practical bun and her robes marking her as a scholar or librarian. She moves with the careful gait of someone who has spent decades navigating these narrow aisles. Her eyes, sharp despite her age, immediately focus on the dark tome in your other hand.
 
-Most unnervingly, she moves with complete silence despite the creaking floorboards that announced her presence moments ago.
+"Ah," she says, her voice carrying a mixture of concern and familiarity, "I see you've found the Shadowfell Codex. Most visitors are drawn to the prettier volumes." She gestures toward the other texts you had discovered. "I am Keeper Miriel, guardian of these archives. That particular tome has been the subject of much... debate among our scholars."
 
-"Ah, a fellow wizard," she says, noting your prepared stance with an amused smile. "I can sense the arcane energies about you. Tell me, young elf, what brings you to seek knowledge in these forgotten archives?"
+Her gaze shifts to your ready stance and the way your hand hovers near your spell components. A knowing smile crosses her weathered features.
 
-Her gaze drops to the tome you're holding, and her expression shifts to one of keen interest. "And what exactly have you found there? That particular volume has been... elusive... for quite some time."
+"Peace, young mage. I mean no harm - though I confess your interest in that particular book does give me pause. Few who handle it remain unchanged by the experience." She takes a step closer, but respectfully maintains distance. "Might I ask what draws you to such dark knowledge?"
 
-She stops about ten feet away - close enough for conversation, but far enough that you could react if she proves hostile. Her hands remain visible, but you notice she wears several rings that practically hum with magical energy.
-How do you respond to her questions?
+What do you say to Keeper Miriel?
 
 ---
 
@@ -94,17 +85,13 @@ How do you respond to her questions?
 
 **Player:** I listen carefully to the stranger's offer. What exactly does he want in exchange?
 
-**DM:** I notice you mentioned "his offer" - but the stranger hasn't made any specific offer yet. The mysterious woman has only asked what brings you here and expressed interest in the tome you're holding.
+**DM:** I notice there might be some confusion - the person who approached you is Keeper Miriel, an elderly woman who is the guardian of these archives. She hasn't made any offer or mentioned wanting anything in exchange yet. 
 
-She stands there expectantly, her unsettling gaze shifting between you and the warm book tucked under your arm. The silence stretches as she waits for your response to her questions about what you're seeking and what you've found.
+She simply introduced herself, expressed concern about your interest in the Shadowfell Codex, and asked what draws you to such dark knowledge.
 
-The woman tilts her head slightly, her dark robes seeming to ripple despite the still air. "Come now, don't be shy. We're both scholars here, are we not? Perhaps we could be of mutual assistance to one another."
+Are you perhaps thinking of a different conversation, or would you like to respond to Keeper Miriel's question about why you're interested in the tome? You could also ask her about the "debate" among scholars she mentioned, or inquire about the nature of the changes that happen to those who handle the book.
 
-*Now* she's hinting at some kind of exchange, but she's waiting to hear what you're after before revealing what she might want in return.
-
-The tome under your arm pulses with that strange warmth again, almost as if it's reacting to her presence.
-
-What do you say to her questions? Do you tell her what you're searching for, or do you try to learn more about her first?
+What would you like to say or do in response to the Keeper?
 
 ---
 
@@ -112,19 +99,17 @@ What do you say to her questions? Do you tell her what you're searching for, or 
 
 **Player:** I consider the bargain. 'Knowledge for knowledge seems fair, but what assurance do I have?'
 
-**DM:** The woman's smile widens at your cautious response, revealing teeth that seem just a bit too sharp. She clasps her hands together, the magical rings on her fingers chiming softly.
+**DM:** Keeper Miriel tilts her head slightly, her brow furrowing with gentle confusion. She adjusts her scholarly robes and takes a small step back, clearly puzzled by your words.
 
-"Ah, a prudent question! Trust is indeed a precious commodity among those who traffic in dangerous knowledge." She gestures to the dusty archives around you. "But consider our circumstances - we are both here, both seeking what others dare not pursue."
+"I'm afraid I don't understand, young scholar," she says, her voice carrying a note of concern. "I haven't proposed any bargain or exchange. I merely introduced myself and asked about your interest in that particular tome."
 
-She takes a half-step closer, her voice dropping to a conspiratorial whisper. "As for assurance... I offer you this: I am bound by certain... *obligations*... that prevent me from directly harming those who deal with me honestly. A magical compact, you might say."
+She gestures toward the Shadowfell Codex still clutched in your hands, her expression growing more worried. "Are you feeling quite alright? That book has been known to... affect those who handle it for too long. Some report hearing whispers, seeing things that aren't there, or becoming confused about conversations that haven't actually occurred."
 
-Her eyes gleam with an inner light that definitely isn't natural. "Besides, that tome you hold is far more dangerous than it appears. Without proper guidance, attempting to unlock its secrets could prove... unfortunate. I merely offer to share what I know of such texts, in exchange for learning what brought you to seek them."
+The elderly keeper's eyes narrow with scholarly interest mixed with genuine concern. "How long have you been holding the Codex? And more importantly - have you opened it yet?"
 
-The book under your arm grows noticeably warmer at her words, and you catch a faint whiff of something like sulfur in the air.
+She moves slightly closer, her hands clasped in front of her in a non-threatening manner. "Perhaps we should set the tome aside for a moment and discuss what you're truly seeking in these archives. Knowledge should be pursued safely, after all."
 
-"So tell me, young seeker - what planar knowledge do you pursue? And perhaps more importantly... are you prepared for the consequences of finding it?"
-
-What do you tell her?
+What do you do? Do you set down the tome as she suggests, or do something else?
 
 ---
 
