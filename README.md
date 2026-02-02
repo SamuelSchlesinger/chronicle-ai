@@ -16,6 +16,8 @@ A solo tabletop RPG powered by Claude. You play; the AI runs the world — narra
 
 Compatible with D&D 5e. Runs locally. [Bring your own API key.](https://console.anthropic.com/)
 
+![Chronicle AI Screenshot](screenshot.png)
+
 ## Quick Start
 
 ```bash

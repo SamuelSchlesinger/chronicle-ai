@@ -189,9 +189,9 @@ impl GameSession {
 
         // Generate starting location if not specified
         let starting_location = if config.starting_location.is_empty() {
-            generate_starting_location(&character).await.unwrap_or_else(|_| {
-                "a crossroads where several paths meet".to_string()
-            })
+            generate_starting_location(&character)
+                .await
+                .unwrap_or_else(|_| "a crossroads where several paths meet".to_string())
         } else {
             config.starting_location
         };
@@ -398,9 +398,7 @@ impl GameSession {
 /// Uses Claude Haiku to create unique, character-appropriate starting scenarios
 /// that provide interesting hooks for adventure.
 async fn generate_starting_location(character: &Character) -> Result<String, SessionError> {
-    let client = Claude::from_env().map_err(|_| {
-        SessionError::Dm(DmError::NoApiKey)
-    })?;
+    let client = Claude::from_env().map_err(|_| SessionError::Dm(DmError::NoApiKey))?;
 
     // Build character context
     let class_info = character
@@ -433,20 +431,17 @@ Examples of good responses:
 - "The overgrown courtyard of a ruined wizard's tower, where strange lights still flicker at night"
 
 Respond with ONLY the location description, no preamble."#,
-        character.name,
-        total_level,
-        class_info,
-        character.race.name,
-        background_name
+        character.name, total_level, class_info, character.race.name, background_name
     );
 
     let request = Request::new(vec![Message::user(&prompt)])
         .with_model("claude-haiku-4-20250514")
         .with_max_tokens(150);
 
-    let response = client.complete(request).await.map_err(|e| {
-        SessionError::Dm(DmError::ApiError(e))
-    })?;
+    let response = client
+        .complete(request)
+        .await
+        .map_err(|e| SessionError::Dm(DmError::ApiError(e)))?;
 
     let location = response
         .content

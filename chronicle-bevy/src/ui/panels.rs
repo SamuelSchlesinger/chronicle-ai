@@ -178,8 +178,10 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState, saves_path:
                 // Load button
                 let load_enabled =
                     !app_state.is_loading && !app_state.is_processing && app_state.has_session();
-                let autosave_path =
-                    chronicle_core::persist::auto_save_path(saves_path, &app_state.world.campaign_name);
+                let autosave_path = chronicle_core::persist::auto_save_path(
+                    saves_path,
+                    &app_state.world.campaign_name,
+                );
                 let autosave_exists = autosave_path.exists();
                 if ui
                     .add_enabled(load_enabled && autosave_exists, egui::Button::new("Load"))

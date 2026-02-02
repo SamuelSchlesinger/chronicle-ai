@@ -558,7 +558,8 @@ fn render_ability_method_step(
                     creation.point_buy_points = 27;
                 }
                 AbilityMethod::Rolled => {
-                    creation.rolled_scores = chronicle_core::character_builder::roll_ability_scores();
+                    creation.rolled_scores =
+                        chronicle_core::character_builder::roll_ability_scores();
                     creation.ability_scores = AbilityScores::default();
                     creation.ability_assignment = [None; 6];
                 }
@@ -1071,8 +1072,10 @@ fn render_review_step(
             match creation.build_character() {
                 Ok(character) => {
                     let saved = chronicle_core::SavedCharacter::new(character);
-                    let path =
-                        chronicle_core::persist::character_save_path(&characters_path, &creation.name);
+                    let path = chronicle_core::persist::character_save_path(
+                        &characters_path,
+                        &creation.name,
+                    );
 
                     // Spawn async save task
                     let path_clone = path.clone();
