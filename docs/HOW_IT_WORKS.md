@@ -48,6 +48,7 @@ The solution is **persistent story memory**. When the DM introduces something wo
 remember_fact(
   subject_name: "Mira",
   subject_type: "npc",
+  category: "personality",
   fact: "Nervous half-elf herbalist who stutters when lying.
         Sold the player healing herbs. Seemed scared when
         asked about the missing merchant.",
