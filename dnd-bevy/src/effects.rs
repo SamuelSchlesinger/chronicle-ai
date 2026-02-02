@@ -1,21 +1,17 @@
-//! Effect-to-animation mapping.
+//! Effect-to-UI mapping.
 //!
-//! This module translates game Effects into visual animations
-//! and UI state updates.
+//! This module translates game Effects into UI state updates,
+//! sounds, and screen shake.
 
 use bevy::prelude::*;
 use dnd_core::rules::Effect;
 use dnd_core::world::NarrativeType;
 
-use crate::animations::{
-    self,
-    dice::{parse_dice_type, DiceType},
-    effects::EffectType,
-};
+use crate::animations;
 use crate::sound::SoundEffect;
 use crate::state::AppState;
 
-/// Process a game effect and trigger appropriate animations and sounds.
+/// Process a game effect and trigger appropriate UI updates, sounds, and effects.
 pub fn process_effect(
     app_state: &mut AppState,
     effect: &Effect,
@@ -25,20 +21,7 @@ pub fn process_effect(
 ) {
     match effect {
         Effect::DiceRolled { roll, purpose } => {
-            // Play dice roll sound
             sound_writer.send(SoundEffect::DiceRoll);
-
-            // Spawn dice animation
-            let dice_type = parse_dice_type(&roll.expression.original);
-            animations::spawn_dice_animation(
-                commands,
-                roll.total,
-                dice_type,
-                purpose.clone(),
-                Vec2::new(400.0, 300.0), // Center-ish position
-            );
-
-            // Add to narrative
             let result_text = format!("{}: {} = {}", purpose, roll.expression, roll.total);
             app_state.add_narrative(result_text, NarrativeType::System, time);
         }
@@ -50,24 +33,9 @@ pub fn process_effect(
             target_ac,
             is_critical,
         } => {
-            // Play hit sound
             if *is_critical {
                 sound_writer.send(SoundEffect::CriticalHit);
-            } else {
-                sound_writer.send(SoundEffect::Hit);
-            }
-
-            // Screen shake on hit
-            let intensity = if *is_critical { 1.0 } else { 0.5 };
-            let effect_type = if *is_critical {
-                EffectType::CriticalHit
-            } else {
-                EffectType::ScreenShake
-            };
-            animations::spawn_combat_effect(commands, effect_type, Vec2::ZERO, intensity);
-
-            // Narrative
-            if *is_critical {
+                animations::spawn_screen_shake(commands, 1.0);
                 app_state.add_narrative(
                     format!(
                         "CRITICAL HIT! {attacker_name} rolls {attack_roll} vs AC {target_ac} and strikes {target_name}!"
@@ -76,6 +44,8 @@ pub fn process_effect(
                     time,
                 );
             } else {
+                sound_writer.send(SoundEffect::Hit);
+                animations::spawn_screen_shake(commands, 0.5);
                 app_state.add_narrative(
                     format!(
                         "{attacker_name} rolls {attack_roll} vs AC {target_ac} and hits {target_name}!"
@@ -93,7 +63,6 @@ pub fn process_effect(
             target_ac,
         } => {
             sound_writer.send(SoundEffect::Miss);
-            animations::spawn_combat_effect(commands, EffectType::Miss, Vec2::ZERO, 0.3);
             app_state.add_narrative(
                 format!(
                     "{attacker_name} rolls {attack_roll} vs AC {target_ac} and misses {target_name}!"
@@ -109,34 +78,14 @@ pub fn process_effect(
             dropped_to_zero,
             ..
         } => {
-            // Spawn floating damage/healing number
             let is_healing = *amount > 0;
-            let is_critical = amount.abs() >= 20; // Arbitrary threshold for "big" damage
 
-            // Play appropriate sound
             if is_healing {
                 sound_writer.send(SoundEffect::Heal);
             } else {
                 sound_writer.send(SoundEffect::Damage);
             }
 
-            animations::spawn_damage_number(
-                commands,
-                *amount,
-                is_healing,
-                is_critical,
-                Vec2::new(500.0, 400.0),
-            );
-
-            // Flash effect
-            let effect_type = if is_healing {
-                EffectType::Heal
-            } else {
-                EffectType::DamageFlash
-            };
-            animations::spawn_combat_effect(commands, effect_type, Vec2::ZERO, 0.5);
-
-            // Narrative
             if *amount < 0 {
                 app_state.add_narrative(
                     format!("Takes {} damage! (HP: {})", -amount, new_current),
@@ -152,7 +101,6 @@ pub fn process_effect(
             }
 
             if *dropped_to_zero {
-                animations::spawn_combat_effect(commands, EffectType::Death, Vec2::ZERO, 1.0);
                 app_state.set_status("You fall unconscious!", time);
             }
         }
@@ -177,7 +125,7 @@ pub fn process_effect(
 
         Effect::CombatStarted => {
             sound_writer.send(SoundEffect::CombatStart);
-            animations::spawn_combat_effect(commands, EffectType::ScreenShake, Vec2::ZERO, 0.3);
+            animations::spawn_screen_shake(commands, 0.3);
             app_state.add_narrative("Combat begins!".to_string(), NarrativeType::Combat, time);
             app_state.set_status("Roll for initiative!", time);
         }
@@ -200,14 +148,6 @@ pub fn process_effect(
         Effect::InitiativeRolled {
             name, roll, total, ..
         } => {
-            // Small dice animation for initiative
-            animations::spawn_dice_animation(
-                commands,
-                *total,
-                DiceType::D20,
-                format!("{name}'s initiative"),
-                Vec2::new(300.0, 400.0),
-            );
             app_state.add_narrative(
                 format!("{name} rolls {roll} for initiative (total: {total})"),
                 NarrativeType::System,
@@ -261,7 +201,6 @@ pub fn process_effect(
 
         Effect::LevelUp { new_level } => {
             sound_writer.send(SoundEffect::LevelUp);
-            animations::spawn_combat_effect(commands, EffectType::LevelUp, Vec2::ZERO, 1.0);
             app_state.add_narrative(
                 format!("LEVEL UP! You are now level {new_level}!"),
                 NarrativeType::System,
@@ -283,7 +222,6 @@ pub fn process_effect(
 
         Effect::SpellSlotUsed { level, remaining } => {
             sound_writer.send(SoundEffect::SpellCast);
-            animations::spawn_combat_effect(commands, EffectType::SpellCast, Vec2::ZERO, 0.5);
             app_state.add_narrative(
                 format!("Used a level {level} spell slot. ({remaining} remaining)"),
                 NarrativeType::System,
@@ -296,7 +234,6 @@ pub fn process_effect(
                 dnd_core::rules::RestType::Short => "short",
                 dnd_core::rules::RestType::Long => "long",
             };
-            animations::spawn_combat_effect(commands, EffectType::Heal, Vec2::ZERO, 0.5);
             app_state.add_narrative(
                 format!("Completed a {rest_name} rest."),
                 NarrativeType::System,
@@ -340,8 +277,7 @@ pub fn process_effect(
             consequence_description,
             ..
         } => {
-            // Visual effect for consequence triggering
-            animations::spawn_combat_effect(commands, EffectType::ScreenShake, Vec2::ZERO, 0.4);
+            animations::spawn_screen_shake(commands, 0.4);
             app_state.add_narrative(
                 format!("CONSEQUENCE: {consequence_description}"),
                 NarrativeType::System,
@@ -466,14 +402,12 @@ pub fn process_effect(
             source,
             ..
         } => {
-            animations::spawn_combat_effect(commands, EffectType::DamageFlash, Vec2::ZERO, 0.8);
             app_state.add_narrative(
                 format!("DEATH SAVE FAILURE from {source}! ({total_failures}/3 failures)"),
                 NarrativeType::Combat,
                 time,
             );
             if *total_failures >= 3 {
-                animations::spawn_combat_effect(commands, EffectType::Death, Vec2::ZERO, 1.0);
                 app_state.set_status("You have died!", time);
             } else {
                 app_state.set_status(format!("Death saves: {total_failures}/3 failures"), time);
@@ -481,7 +415,6 @@ pub fn process_effect(
         }
 
         Effect::DeathSavesReset { .. } => {
-            animations::spawn_combat_effect(commands, EffectType::Heal, Vec2::ZERO, 0.5);
             app_state.add_narrative(
                 "Death saves reset - you're stable!".to_string(),
                 NarrativeType::System,
@@ -491,7 +424,7 @@ pub fn process_effect(
 
         Effect::CharacterDied { cause, .. } => {
             sound_writer.send(SoundEffect::Death);
-            animations::spawn_combat_effect(commands, EffectType::Death, Vec2::ZERO, 1.0);
+            animations::spawn_screen_shake(commands, 1.0);
             app_state.add_narrative(
                 format!("YOU HAVE DIED! Cause: {cause}"),
                 NarrativeType::Combat,
@@ -505,13 +438,6 @@ pub fn process_effect(
             total_successes,
             ..
         } => {
-            animations::spawn_dice_animation(
-                commands,
-                *roll,
-                DiceType::D20,
-                "Death Save".to_string(),
-                Vec2::new(400.0, 300.0),
-            );
             app_state.add_narrative(
                 format!("Death save SUCCESS! Rolled {roll} ({total_successes}/3 successes)"),
                 NarrativeType::Combat,
@@ -521,7 +447,6 @@ pub fn process_effect(
         }
 
         Effect::Stabilized { .. } => {
-            animations::spawn_combat_effect(commands, EffectType::Heal, Vec2::ZERO, 0.7);
             app_state.add_narrative(
                 "You have stabilized! No longer dying.".to_string(),
                 NarrativeType::Combat,
@@ -537,7 +462,6 @@ pub fn process_effect(
             dc,
             ..
         } => {
-            animations::spawn_combat_effect(commands, EffectType::DamageFlash, Vec2::ZERO, 0.6);
             app_state.add_narrative(
                 format!(
                     "CONCENTRATION BROKEN! Took {damage_taken} damage, rolled {roll} vs DC {dc} - {spell_name} ends!"

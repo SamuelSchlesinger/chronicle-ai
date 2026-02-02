@@ -66,9 +66,6 @@ pub struct SaveMetadata {
     /// Current location.
     pub location: String,
 
-    /// Play time in minutes.
-    pub play_time_minutes: u32,
-
     /// Number of in-game days elapsed.
     pub days_elapsed: u32,
 
@@ -90,7 +87,6 @@ impl SavedCampaign {
             campaign_name: world.campaign_name.clone(),
             level: world.player_character.level,
             location: world.current_location.name.clone(),
-            play_time_minutes: 0, // TODO: Track actual play time
             days_elapsed: world.game_time.day as u32,
             saved_at: saved_at.clone(),
         };

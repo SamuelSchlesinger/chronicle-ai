@@ -3150,23 +3150,6 @@ impl RulesEngine {
     }
 }
 
-#[allow(dead_code)]
-fn parse_item_type(s: &str) -> ItemType {
-    match s.to_lowercase().as_str() {
-        "weapon" => ItemType::Weapon,
-        "armor" => ItemType::Armor,
-        "shield" => ItemType::Shield,
-        "potion" => ItemType::Potion,
-        "scroll" => ItemType::Scroll,
-        "wand" => ItemType::Wand,
-        "ring" => ItemType::Ring,
-        "wondrous" => ItemType::Wondrous,
-        "adventuring" => ItemType::Adventuring,
-        "tool" => ItemType::Tool,
-        _ => ItemType::Other,
-    }
-}
-
 impl Default for RulesEngine {
     fn default() -> Self {
         Self::new()

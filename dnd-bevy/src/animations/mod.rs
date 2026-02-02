@@ -1,17 +1,10 @@
 //! Animation systems for visual feedback.
 //!
-//! This module provides:
-//! - Dice rolling animations
-//! - Floating damage numbers
-//! - Combat effects (screen shake, flashes)
+//! This module provides screen shake effects for combat feedback.
 
-pub mod damage;
-pub mod dice;
 pub mod effects;
 
-pub use damage::{animate_damage_numbers, spawn_damage_number};
-pub use dice::{animate_dice, spawn_dice_animation};
-pub use effects::{animate_combat_effects, spawn_combat_effect};
+pub use effects::{animate_screen_shake, spawn_screen_shake};
 
 use bevy::prelude::*;
 

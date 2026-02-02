@@ -84,9 +84,7 @@ fn main() {
         .add_systems(
             Update,
             (
-                animations::animate_dice,
-                animations::animate_damage_numbers,
-                animations::animate_combat_effects,
+                animations::animate_screen_shake,
                 animations::cleanup_finished_animations,
             ),
         )
