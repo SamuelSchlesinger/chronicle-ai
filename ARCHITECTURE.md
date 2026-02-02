@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the architecture of the chronicle-ai workspace, focused on AI-driven tabletop RPG gameplay (compatible with D&D 5e) with long campaigns, multi-interface support, and programmatic testability.
+This document describes the architecture of the chronicler workspace, focused on AI-driven tabletop RPG gameplay (compatible with D&D 5e) with long campaigns, multi-interface support, and programmatic testability.
 
 > For historical context on the original framework design, see `docs/archive/FRAMEWORK_DESIGN.md`.
 
@@ -24,14 +24,14 @@ This document describes the architecture of the chronicle-ai workspace, focused 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      chronicle (binary crate)                    │
+│                      chronicler (binary crate)                   │
 │  TUI (ratatui) ──┐                                               │
 │  CLI (optional) ─┼─► Interface adapters                          │
 │  HTTP (future) ──┘                                               │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │ uses
 ┌───────────────────────────────▼─────────────────────────────────┐
-│                   chronicle-core (library crate)                 │
+│                   chronicler-core (library crate)                │
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
 │  │ GameSession  │  │  DungeonMaster│  │   RulesEngine        │   │
@@ -64,12 +64,12 @@ This document describes the architecture of the chronicle-ai workspace, focused 
 ## Crate Structure (Simplified)
 
 ```
-chronicle-ai/
+chronicler/
 ├── claude/              # Anthropic API client (focused, minimal)
 │   └── src/
 │       ├── lib.rs       # Client, Message, Tool, Stream
 │       └── ...
-├── chronicle-core/      # Game logic + AI DM (the heart)
+├── chronicler-core/     # Game logic + AI DM (the heart)
 │   └── src/
 │       ├── lib.rs       # GameSession (public API)
 │       ├── world.rs     # GameWorld, Character, Location, etc.
@@ -82,7 +82,7 @@ chronicle-ai/
 │       │   └── tools.rs      # DM tools (dice, checks, etc.)
 │       ├── dice.rs      # Dice notation parser
 │       └── persist.rs   # Save/load campaigns
-├── chronicle/           # Binary with TUI
+├── chronicler/          # Binary with TUI
 │   └── src/
 │       ├── main.rs
 │       ├── tui/         # ratatui rendering
@@ -92,7 +92,7 @@ chronicle-ai/
 
 **Key changes from current structure:**
 - Generic agent framework → `claude` (focused Anthropic client, no generic Agent trait)
-- `agents/src/dnd/` → `chronicle-core` (promoted to its own crate)
+- `agents/src/dnd/` → `chronicler-core` (promoted to its own crate)
 - Remove unused abstractions (SafetyValidator, generic Memory traits, etc.)
 
 ---
@@ -405,13 +405,13 @@ macro_rules! tool {
 
 | Current | Why Remove |
 |---------|------------|
-| `Agent` trait | Chronicle has one agent type (DM); generic trait adds boilerplate with no benefit |
-| `SafetyValidator`, `Guardrail` | Chronicle doesn't need safety validation pipelines |
-| Generic `Memory` traits | Specialized DmMemory for chronicle needs; generic traits unused |
+| `Agent` trait | Chronicler has one agent type (DM); generic trait adds boilerplate with no benefit |
+| `SafetyValidator`, `Guardrail` | Chronicler doesn't need safety validation pipelines |
+| Generic `Memory` traits | Specialized DmMemory for chronicler needs; generic traits unused |
 | `ContextManager` trait | Direct implementation in DmMemory |
 | `Context` vs `ConversationContext` duality | Single `DmMemory` type |
 | `ToolRegistry` ceremony | Direct tool list; macro for definitions |
-| `AgentId`, `SessionId`, etc. newtypes | Useful, but chronicle only needs `CharacterId`, `LocationId`, etc. |
+| `AgentId`, `SessionId`, etc. newtypes | Useful, but chronicler only needs `CharacterId`, `LocationId`, etc. |
 | Dual `process()` / `process_action()` | Single `player_action()` API |
 
 ---
@@ -420,7 +420,7 @@ macro_rules! tool {
 
 ### Phase 1: Core Restructure
 1. Create `claude/` crate with focused Anthropic client
-2. Create `chronicle-core/` crate with `GameSession` API
+2. Create `chronicler-core/` crate with `GameSession` API
 3. Implement Intent/Effect pattern with `RulesEngine`
 4. Port existing game mechanics (dice, character, combat)
 
@@ -443,7 +443,7 @@ macro_rules! tool {
 ### Tool Schema Definition: Derive Macro
 
 ```rust
-// Proc-macro crate: chronicle-macros
+// Proc-macro crate: chronicler-macros
 #[derive(Tool)]
 #[tool(name = "roll_dice", description = "Roll dice using standard notation")]
 struct RollDice {

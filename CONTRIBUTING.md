@@ -1,4 +1,4 @@
-# Contributing to Chronicle AI
+# Contributing to Chronicler
 
 Thanks for your interest in contributing! This document will help you get started.
 
@@ -10,8 +10,8 @@ Thanks for your interest in contributing! This document will help you get starte
 
 **Setup:**
 ```bash
-git clone https://github.com/SamuelSchlesinger/chronicle-ai.git
-cd chronicle-ai
+git clone https://github.com/SamuelSchlesinger/chronicler.git
+cd chronicler
 cp .env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY
 ```
@@ -26,7 +26,7 @@ cargo fmt --check           # Check formatting
 
 **Run the game:**
 ```bash
-cargo run -p chronicle
+cargo run -p chronicler
 ```
 
 ## Project Structure
@@ -34,9 +34,9 @@ cargo run -p chronicle
 | Crate | Path | Purpose |
 |-------|------|---------|
 | `claude` | `claude/` | Minimal Anthropic API client |
-| `chronicle-macros` | `chronicle-macros/` | Proc macros for tool definitions |
-| `chronicle-core` | `chronicle-core/` | Game engine, rules, AI DM |
-| `chronicle` | `chronicle-bevy/` | Bevy GUI application |
+| `chronicler-macros` | `chronicler-macros/` | Proc macros for tool definitions |
+| `chronicler-core` | `chronicler-core/` | Game engine, rules, AI DM |
+| `chronicler` | `chronicler-bevy/` | Bevy GUI application |
 
 ## Code Style
 
@@ -50,7 +50,7 @@ cargo run -p chronicle
 Tools let the AI DM interact with game mechanics. To add one:
 
 ```rust
-use chronicle_macros::Tool;
+use chronicler_macros::Tool;
 use serde::Deserialize;
 
 /// Brief description of what the tool does
@@ -64,7 +64,7 @@ struct YourTool {
 }
 ```
 
-Then implement the tool handler in `chronicle-core/src/dm/tools.rs`.
+Then implement the tool handler in `chronicler-core/src/dm/tools.rs`.
 
 ## D&D Content Guidelines
 

@@ -44,7 +44,7 @@ cargo run -p claude --example simple_chat
 cargo run -p claude --example tool_use
 
 # Run the game (requires ANTHROPIC_API_KEY in .env)
-cargo run -p chronicle
+cargo run -p chronicler
 ```
 
 ## Pre-Commit Requirements
@@ -76,9 +76,9 @@ This workspace contains 4 crates:
 | Crate | Path | Description |
 |-------|------|-------------|
 | `claude` | `claude/` | Minimal Anthropic Claude API client |
-| `chronicle-macros` | `chronicle-macros/` | Procedural macros for tool definitions |
-| `chronicle-core` | `chronicle-core/` | Tabletop RPG game engine compatible with D&D 5e, with AI Dungeon Master |
-| `chronicle` | `chronicle-bevy/` | Bevy GUI application |
+| `chronicler-macros` | `chronicler-macros/` | Procedural macros for tool definitions |
+| `chronicler-core` | `chronicler-core/` | Tabletop RPG game engine compatible with D&D 5e, with AI Dungeon Master |
+| `chronicler` | `chronicler-bevy/` | Bevy GUI application |
 
 ## Claude API Client (`claude/src/`)
 
@@ -99,7 +99,7 @@ Features:
 - Tool use with automatic execution loop (`complete_with_tools`)
 - SSE parsing for streaming responses
 
-## Game Engine (`chronicle-core/src/`)
+## Game Engine (`chronicler-core/src/`)
 
 The tabletop RPG game engine (compatible with D&D 5e) provides:
 
@@ -113,7 +113,7 @@ The tabletop RPG game engine (compatible with D&D 5e) provides:
 | `persist.rs` | Save/load campaigns |
 | `dm/` | AI Dungeon Master implementation |
 
-### AI Dungeon Master (`chronicle-core/src/dm/`)
+### AI Dungeon Master (`chronicler-core/src/dm/`)
 
 ```
 dm/
@@ -129,7 +129,7 @@ dm/
 ### Using the derive macro (recommended):
 
 ```rust
-use chronicle_macros::Tool;
+use chronicler_macros::Tool;
 use serde::Deserialize;
 
 /// Roll dice using standard notation

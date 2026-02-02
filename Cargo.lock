@@ -1576,13 +1576,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
-name = "chronicle"
+name = "chronicler"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "bevy",
  "bevy_egui",
- "chronicle-core",
+ "chronicler-core",
  "dotenvy",
  "once_cell",
  "rand",
@@ -1594,10 +1594,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "chronicle-core"
+name = "chronicler-core"
 version = "0.1.0"
 dependencies = [
- "chronicle-macros",
+ "chronicler-macros",
  "claude",
  "dotenvy",
  "futures",
@@ -1612,7 +1612,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "chronicle-macros"
+name = "chronicler-macros"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",

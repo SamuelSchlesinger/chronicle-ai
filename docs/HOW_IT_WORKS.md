@@ -139,7 +139,7 @@ Bad AI DMs constantly ask clarifying questions:
 > **Player:** "I attack whatever looks threatening."
 > **Bad DM:** "Which enemy would you like to attack?"
 
-This kills momentum. The chronicle-ai DM is instructed to **pick the obvious choice and act**:
+This kills momentum. The chronicler DM is instructed to **pick the obvious choice and act**:
 
 > **Player:** "I attack whatever looks threatening."
 > **Good DM:** "You lunge at the Bandit Leader — clearly the biggest threat! Rolling attack... 18 vs AC 15 — hit! Rolling damage... 8 slashing damage! He staggers back, blood seeping through his leather armor."

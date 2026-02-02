@@ -1,4 +1,4 @@
-# chronicle-ai
+# chronicler
 
 *An AI Dungeon Master that remembers.*
 
@@ -21,10 +21,10 @@ Compatible with D&D 5e. Runs locally. [Bring your own API key.](https://console.
 ## Quick Start
 
 ```bash
-git clone https://github.com/SamuelSchlesinger/chronicle-ai.git
-cd chronicle-ai
+git clone https://github.com/SamuelSchlesinger/chronicler.git
+cd chronicler
 export ANTHROPIC_API_KEY=your_key_here
-cargo run -p chronicle
+cargo run -p chronicler
 ```
 
 ## What Makes It Different
@@ -49,9 +49,9 @@ cargo run -p chronicle
 ## Under the Hood
 
 ```
-chronicle          Bevy + egui desktop app
+chronicler         Bevy + egui desktop app
     |
-chronicle-core     Game engine, rules, AI DM, persistence
+chronicler-core    Game engine, rules, AI DM, persistence
     |
 claude             Minimal Anthropic API client
 ```
