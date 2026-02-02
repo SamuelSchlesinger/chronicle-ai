@@ -1301,7 +1301,7 @@ fn render_onboarding_page_good_to_know(ui: &mut egui::Ui) {
 
     ui.group(|ui| {
         ui.label(
-            egui::RichText::new("⏱ Response Time")
+            egui::RichText::new("Response Time")
                 .strong()
                 .color(egui::Color32::from_rgb(100, 180, 255)),
         );
@@ -1314,7 +1314,7 @@ fn render_onboarding_page_good_to_know(ui: &mut egui::Ui) {
 
     ui.group(|ui| {
         ui.label(
-            egui::RichText::new("💾 Auto-Save")
+            egui::RichText::new("Auto-Save")
                 .strong()
                 .color(egui::Color32::from_rgb(100, 200, 100)),
         );
@@ -1327,7 +1327,7 @@ fn render_onboarding_page_good_to_know(ui: &mut egui::Ui) {
 
     ui.group(|ui| {
         ui.label(
-            egui::RichText::new("⌨ Useful Shortcuts")
+            egui::RichText::new("Useful Shortcuts")
                 .strong()
                 .color(egui::Color32::from_rgb(218, 165, 32)),
         );
