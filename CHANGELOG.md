@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to dnd-ai are documented in this file.
+All notable changes to chronicle-ai are documented in this file.
 
 ## [Unreleased]
 
@@ -42,7 +42,7 @@ All notable changes to dnd-ai are documented in this file.
 - Fix rage mechanics, conditions, and spells issues from beta testing
 
 ### Tests
-- Add unit tests for to_snake_case in dnd-macros
+- Add unit tests for to_snake_case in chronicle-macros
 - Add additional tests for DM memory and relevance
 - Add QA test suite for code quality
 

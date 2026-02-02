@@ -4,7 +4,7 @@
 
 ---
 
-The AI Dungeon Master isn't just a chatbot with a fantasy skin. It's a system designed to run actual D&D 5e — with proper rules, persistent memory, and narrative craft. Here's how.
+The AI Dungeon Master isn't just a chatbot with a fantasy skin. It's a system designed to run actual tabletop RPG sessions compatible with D&D 5e — with proper rules, persistent memory, and narrative craft. Here's how.
 
 ## The Prompt Stack
 
@@ -23,7 +23,7 @@ The base prompt teaches the AI to be a *good* DM — not just one that knows the
 
 The AI doesn't just describe what happens — it calls **tools** for mechanical resolution:
 
-- **`skill_check`** / **`saving_throw`** — Proper D&D dice rolls with difficulty classes
+- **`skill_check`** / **`saving_throw`** — Proper dice rolls with difficulty classes
 - **`apply_damage`** / **`apply_healing`** — HP tracking that persists
 - **`start_combat`** — Initiative rolls and turn order management
 - **`roll_dice`** — Any dice expression: `2d6+3`, `4d6kh3`, `1d20 advantage`
@@ -69,7 +69,7 @@ Bad AI DMs constantly ask clarifying questions:
 > **Player:** "I attack whatever looks threatening."
 > **Bad DM:** "Which enemy would you like to attack?"
 
-This kills momentum. The dnd-ai DM is instructed to **pick the obvious choice and act**:
+This kills momentum. The chronicle-ai DM is instructed to **pick the obvious choice and act**:
 
 > **Player:** "I attack whatever looks threatening."
 > **Good DM:** "You lunge at the Bandit Leader — clearly the biggest threat! Rolling attack... 18 vs AC 15 — hit! Rolling damage... 8 slashing damage! He staggers back, blood seeping through his leather armor."

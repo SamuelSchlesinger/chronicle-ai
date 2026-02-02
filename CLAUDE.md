@@ -43,8 +43,8 @@ cargo test test_name
 cargo run -p claude --example simple_chat
 cargo run -p claude --example tool_use
 
-# Run the D&D game (requires ANTHROPIC_API_KEY in .env)
-cargo run -p dnd
+# Run the game (requires ANTHROPIC_API_KEY in .env)
+cargo run -p chronicle
 ```
 
 ## Workspace Structure
@@ -54,9 +54,9 @@ This workspace contains 4 crates:
 | Crate | Path | Description |
 |-------|------|-------------|
 | `claude` | `claude/` | Minimal Anthropic Claude API client |
-| `dnd-macros` | `dnd-macros/` | Procedural macros for tool definitions |
-| `dnd-core` | `dnd-core/` | D&D 5e game engine with AI Dungeon Master |
-| `dnd` | `dnd-bevy/` | Bevy GUI application for D&D |
+| `chronicle-macros` | `chronicle-macros/` | Procedural macros for tool definitions |
+| `chronicle-core` | `chronicle-core/` | Tabletop RPG game engine compatible with D&D 5e, with AI Dungeon Master |
+| `chronicle` | `chronicle-bevy/` | Bevy GUI application |
 
 ## Claude API Client (`claude/src/`)
 
@@ -77,9 +77,9 @@ Features:
 - Tool use with automatic execution loop (`complete_with_tools`)
 - SSE parsing for streaming responses
 
-## D&D Game Engine (`dnd-core/src/`)
+## Game Engine (`chronicle-core/src/`)
 
-The D&D 5e game engine provides:
+The tabletop RPG game engine (compatible with D&D 5e) provides:
 
 | Module | Purpose |
 |--------|---------|
@@ -91,12 +91,12 @@ The D&D 5e game engine provides:
 | `persist.rs` | Save/load campaigns |
 | `dm/` | AI Dungeon Master implementation |
 
-### AI Dungeon Master (`dnd-core/src/dm/`)
+### AI Dungeon Master (`chronicle-core/src/dm/`)
 
 ```
 dm/
 ├── agent.rs          # Main DM agent with tool execution
-├── tools.rs          # D&D tools (dice, skill checks, etc.)
+├── tools.rs          # RPG tools (dice, skill checks, etc.)
 ├── memory.rs         # Context management and summarization
 ├── prompts/          # System prompt templates (.txt files)
 └── story_memory/     # Fact, entity, and relationship tracking
@@ -104,13 +104,13 @@ dm/
 
 ## Adding a New Tool
 
-### Using the derive macro (recommended for D&D tools):
+### Using the derive macro (recommended):
 
 ```rust
-use dnd_macros::Tool;
+use chronicle_macros::Tool;
 use serde::Deserialize;
 
-/// Roll dice using D&D notation
+/// Roll dice using standard notation
 #[derive(Tool, Deserialize)]
 #[tool(name = "roll_dice")]
 struct RollDice {

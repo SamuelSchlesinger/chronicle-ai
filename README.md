@@ -1,4 +1,4 @@
-# dnd-ai
+# chronicle-ai
 
 > *"Another seeker of forbidden knowledge, I presume? How... interesting."*
 >
@@ -26,7 +26,7 @@
 
 ---
 
-A D&D 5e game with an AI Dungeon Master powered by Claude. Create a character and embark on procedurally-generated adventures with an AI that remembers your story, tracks consequences, and adapts to your choices.
+A tabletop RPG game compatible with D&D 5e, featuring an AI Dungeon Master powered by Claude. Create a character and embark on procedurally-generated adventures with an AI that remembers your story, tracks consequences, and adapts to your choices.
 
 **Bring Your Own Key** — This is a local application that runs on your machine. You provide your own [Anthropic API key](https://console.anthropic.com/), so you control your costs and your data never passes through a third party.
 
@@ -38,14 +38,14 @@ A D&D 5e game with an AI Dungeon Master powered by Claude. Create a character an
 
 ```bash
 # Clone and enter the repo
-git clone https://github.com/SamuelSchlesinger/dnd-ai.git
-cd dnd-ai
+git clone https://github.com/SamuelSchlesinger/chronicle-ai.git
+cd chronicle-ai
 
 # Set your API key (or create a .env file)
 export ANTHROPIC_API_KEY=your_key_here
 
 # Run the game
-cargo run -p dnd
+cargo run -p chronicle
 ```
 
 **3. Create your character** and start playing!
@@ -97,12 +97,12 @@ See the AI Dungeon Master in action:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     dnd (application)                       │
+│                  chronicle (application)                     │
 │                    GUI (Bevy + egui)                        │
 └─────────────────────────────┬───────────────────────────────┘
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
-│                    dnd-core (library)                       │
+│                 chronicle-core (library)                     │
 │  GameSession, Rules Engine, AI DM, Persistence              │
 └─────────────────────────────┬───────────────────────────────┘
                               │
