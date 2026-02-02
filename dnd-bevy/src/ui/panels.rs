@@ -39,6 +39,7 @@ pub fn render_main_menu(
                 .add_sized(button_size, egui::Button::new("New Game"))
                 .clicked()
             {
+                app_state.play_click();
                 next_phase.set(GamePhase::CharacterCreation);
             }
 
@@ -49,6 +50,7 @@ pub fn render_main_menu(
                 .on_hover_text("Load a saved character to start a new adventure")
                 .clicked()
             {
+                app_state.play_click();
                 app_state.toggle_overlay(ActiveOverlay::LoadCharacter);
             }
 
@@ -59,6 +61,7 @@ pub fn render_main_menu(
                 .on_hover_text("Continue a saved campaign")
                 .clicked()
             {
+                app_state.play_click();
                 app_state.toggle_overlay(ActiveOverlay::LoadGame);
             }
 
@@ -68,6 +71,7 @@ pub fn render_main_menu(
                 .add_sized(button_size, egui::Button::new("Settings"))
                 .clicked()
             {
+                app_state.play_click();
                 app_state.toggle_overlay(ActiveOverlay::Settings);
             }
 
@@ -77,6 +81,7 @@ pub fn render_main_menu(
                 .add_sized(button_size, egui::Button::new("Quit"))
                 .clicked()
             {
+                app_state.play_click();
                 std::process::exit(0);
             }
 
@@ -122,6 +127,7 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState) {
 
                 // Help button
                 if ui.button("?").on_hover_text("Help (F1)").clicked() {
+                    app_state.play_click();
                     app_state.toggle_overlay(ActiveOverlay::Help);
                 }
 
@@ -131,15 +137,37 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState) {
                     .on_hover_text("Game settings")
                     .clicked()
                 {
+                    app_state.play_click();
                     app_state.toggle_overlay(ActiveOverlay::Settings);
+                }
+
+                // Quest Log button
+                if ui
+                    .button("Quests")
+                    .on_hover_text("Quest log (Shift+Q)")
+                    .clicked()
+                {
+                    app_state.play_click();
+                    app_state.toggle_overlay(ActiveOverlay::QuestLog);
+                }
+
+                // Inventory button
+                if ui
+                    .button("Inventory")
+                    .on_hover_text("View inventory (I)")
+                    .clicked()
+                {
+                    app_state.play_click();
+                    app_state.toggle_overlay(ActiveOverlay::Inventory);
                 }
 
                 // Character Sheet button
                 if ui
                     .button("Character")
-                    .on_hover_text("View full character sheet")
+                    .on_hover_text("Character sheet (C)")
                     .clicked()
                 {
+                    app_state.play_click();
                     app_state.toggle_overlay(ActiveOverlay::CharacterSheet);
                 }
 
@@ -162,6 +190,7 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState) {
                     })
                     .clicked()
                 {
+                    app_state.play_click();
                     if let Some(tx) = &app_state.request_tx {
                         let _ = tx.try_send(WorkerRequest::Load(autosave_path));
                         app_state.is_loading = true;
@@ -177,6 +206,7 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState) {
                     .on_hover_text("Save game (Ctrl+S)")
                     .clicked()
                 {
+                    app_state.play_click();
                     if let Some(tx) = &app_state.request_tx {
                         let path = dnd_core::persist::auto_save_path(
                             "saves",
@@ -388,6 +418,7 @@ pub fn render_character_panel(ctx: &egui::Context, app_state: &mut AppState) {
                         })
                         .clicked()
                     {
+                        app_state.play_click();
                         app_state.character_panel_expanded = !app_state.character_panel_expanded;
                     }
                 });
@@ -687,7 +718,7 @@ pub fn render_combat_panel(ctx: &egui::Context, app_state: &AppState) {
 /// Render the game over screen.
 pub fn render_game_over(
     ctx: &egui::Context,
-    app_state: &AppState,
+    app_state: &mut AppState,
     next_phase: &mut NextState<GamePhase>,
 ) {
     egui::CentralPanel::default().show(ctx, |ui| {
@@ -707,6 +738,7 @@ pub fn render_game_over(
             ui.add_space(40.0);
 
             if ui.button("Return to Main Menu").clicked() {
+                app_state.play_click();
                 next_phase.set(GamePhase::MainMenu);
             }
         });

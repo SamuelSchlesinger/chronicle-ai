@@ -12,17 +12,22 @@ use crate::animations::{
     dice::{parse_dice_type, DiceType},
     effects::EffectType,
 };
+use crate::sound::SoundEffect;
 use crate::state::AppState;
 
-/// Process a game effect and trigger appropriate animations.
+/// Process a game effect and trigger appropriate animations and sounds.
 pub fn process_effect(
     app_state: &mut AppState,
     effect: &Effect,
     commands: &mut Commands,
     time: f64,
+    sound_writer: &mut EventWriter<SoundEffect>,
 ) {
     match effect {
         Effect::DiceRolled { roll, purpose } => {
+            // Play dice roll sound
+            sound_writer.send(SoundEffect::DiceRoll);
+
             // Spawn dice animation
             let dice_type = parse_dice_type(&roll.expression.original);
             animations::spawn_dice_animation(
@@ -45,6 +50,13 @@ pub fn process_effect(
             target_ac,
             is_critical,
         } => {
+            // Play hit sound
+            if *is_critical {
+                sound_writer.send(SoundEffect::CriticalHit);
+            } else {
+                sound_writer.send(SoundEffect::Hit);
+            }
+
             // Screen shake on hit
             let intensity = if *is_critical { 1.0 } else { 0.5 };
             let effect_type = if *is_critical {
@@ -80,6 +92,7 @@ pub fn process_effect(
             attack_roll,
             target_ac,
         } => {
+            sound_writer.send(SoundEffect::Miss);
             animations::spawn_combat_effect(commands, EffectType::Miss, Vec2::ZERO, 0.3);
             app_state.add_narrative(
                 format!(
@@ -99,6 +112,13 @@ pub fn process_effect(
             // Spawn floating damage/healing number
             let is_healing = *amount > 0;
             let is_critical = amount.abs() >= 20; // Arbitrary threshold for "big" damage
+
+            // Play appropriate sound
+            if is_healing {
+                sound_writer.send(SoundEffect::Heal);
+            } else {
+                sound_writer.send(SoundEffect::Damage);
+            }
 
             animations::spawn_damage_number(
                 commands,
@@ -156,6 +176,7 @@ pub fn process_effect(
         }
 
         Effect::CombatStarted => {
+            sound_writer.send(SoundEffect::CombatStart);
             animations::spawn_combat_effect(commands, EffectType::ScreenShake, Vec2::ZERO, 0.3);
             app_state.add_narrative("Combat begins!".to_string(), NarrativeType::Combat, time);
             app_state.set_status("Roll for initiative!", time);
@@ -239,6 +260,7 @@ pub fn process_effect(
         }
 
         Effect::LevelUp { new_level } => {
+            sound_writer.send(SoundEffect::LevelUp);
             animations::spawn_combat_effect(commands, EffectType::LevelUp, Vec2::ZERO, 1.0);
             app_state.add_narrative(
                 format!("LEVEL UP! You are now level {new_level}!"),
@@ -260,6 +282,7 @@ pub fn process_effect(
         }
 
         Effect::SpellSlotUsed { level, remaining } => {
+            sound_writer.send(SoundEffect::SpellCast);
             animations::spawn_combat_effect(commands, EffectType::SpellCast, Vec2::ZERO, 0.5);
             app_state.add_narrative(
                 format!("Used a level {level} spell slot. ({remaining} remaining)"),
@@ -467,6 +490,7 @@ pub fn process_effect(
         }
 
         Effect::CharacterDied { cause, .. } => {
+            sound_writer.send(SoundEffect::Death);
             animations::spawn_combat_effect(commands, EffectType::Death, Vec2::ZERO, 1.0);
             app_state.add_narrative(
                 format!("YOU HAVE DIED! Cause: {cause}"),

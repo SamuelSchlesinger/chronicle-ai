@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
 use crate::character_creation::{CharacterCreation, ReadyToStart};
+use crate::sound::SoundSettings;
 use crate::state::{
     ActiveOverlay, AppState, CharacterSaveList, GamePhase, GameSaveInfo, GameSaveList,
     OnboardingState, PendingCharacterList, PendingGameList, PendingGameLoad,
@@ -25,6 +26,7 @@ pub fn main_ui_system(
     mut char_save_list: Option<ResMut<CharacterSaveList>>,
     mut game_save_list: Option<ResMut<GameSaveList>>,
     mut onboarding: ResMut<OnboardingState>,
+    mut sound_settings: ResMut<SoundSettings>,
     time: Res<Time>,
 ) {
     let ctx = contexts.ctx_mut();
@@ -47,7 +49,7 @@ pub fn main_ui_system(
                     overlays::render_onboarding(ctx, &mut onboarding, &mut app_state);
                 }
                 ActiveOverlay::Settings => {
-                    overlays::render_settings(ctx, &mut app_state);
+                    overlays::render_settings(ctx, &mut app_state, Some(sound_settings.as_mut()));
                 }
                 ActiveOverlay::LoadCharacter => {
                     if let Some(ref mut list) = char_save_list {
@@ -156,7 +158,8 @@ pub fn main_ui_system(
                 ActiveOverlay::QuestLog => overlays::render_quest_log(ctx, &app_state),
                 ActiveOverlay::Help => overlays::render_help(ctx),
                 ActiveOverlay::Settings => {
-                    if overlays::render_settings(ctx, &mut app_state) {
+                    if overlays::render_settings(ctx, &mut app_state, Some(sound_settings.as_mut()))
+                    {
                         // User clicked "Return to Main Menu"
                         next_phase.set(GamePhase::MainMenu);
                     }
@@ -180,7 +183,7 @@ pub fn main_ui_system(
             }
         }
         GamePhase::GameOver => {
-            panels::render_game_over(ctx, &app_state, &mut next_phase);
+            panels::render_game_over(ctx, &mut app_state, &mut next_phase);
         }
     }
 }

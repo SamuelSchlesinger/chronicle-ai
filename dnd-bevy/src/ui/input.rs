@@ -56,10 +56,8 @@ pub fn render_input_panel(ctx: &egui::Context, app_state: &mut AppState) {
                     app_state.send_action(action);
                 }
 
-                // Auto-focus the input field (but not right after submitting)
-                if !app_state.is_processing && !should_submit {
-                    response.request_focus();
-                }
+                // Note: We don't auto-focus the input field so keyboard shortcuts work
+                // Users can click the input field or use quick action buttons
 
                 ui.add_space(8.0);
 
@@ -70,6 +68,7 @@ pub fn render_input_panel(ctx: &egui::Context, app_state: &mut AppState) {
                     .add_enabled(send_enabled, egui::Button::new("Send"))
                     .clicked()
                 {
+                    app_state.play_click();
                     let action = std::mem::take(&mut app_state.input_text);
                     app_state.add_to_history(action.clone());
                     app_state.add_narrative(action.clone(), NarrativeType::PlayerAction, 0.0);
@@ -88,9 +87,11 @@ pub fn render_input_panel(ctx: &egui::Context, app_state: &mut AppState) {
                     // Combat actions (shown during combat)
                     if app_state.in_combat && app_state.is_player_turn {
                         if ui.small_button("Attack").clicked() {
+                            app_state.play_click();
                             app_state.input_text = "I attack ".to_string();
                         }
                         if ui.small_button("Dodge").clicked() {
+                            app_state.play_click();
                             let action = "I take the Dodge action".to_string();
                             app_state.add_narrative(
                                 action.clone(),
@@ -100,6 +101,7 @@ pub fn render_input_panel(ctx: &egui::Context, app_state: &mut AppState) {
                             app_state.send_action(action);
                         }
                         if ui.small_button("Disengage").clicked() {
+                            app_state.play_click();
                             let action = "I take the Disengage action".to_string();
                             app_state.add_narrative(
                                 action.clone(),
@@ -115,14 +117,17 @@ pub fn render_input_panel(ctx: &egui::Context, app_state: &mut AppState) {
 
                     // General actions - only useful ones
                     if ui.small_button("Look").clicked() {
+                        app_state.play_click();
                         let action = "I look around".to_string();
                         app_state.add_narrative(action.clone(), NarrativeType::PlayerAction, 0.0);
                         app_state.send_action(action);
                     }
                     if ui.small_button("Search").clicked() {
+                        app_state.play_click();
                         app_state.input_text = "I search ".to_string();
                     }
                     if ui.small_button("Talk to").clicked() {
+                        app_state.play_click();
                         app_state.input_text = "I talk to ".to_string();
                     }
 
@@ -134,6 +139,7 @@ pub fn render_input_panel(ctx: &egui::Context, app_state: &mut AppState) {
                         ui.separator();
                         ui.add_space(4.0);
                         if ui.small_button("Cast...").clicked() {
+                            app_state.play_click();
                             app_state.input_text = "I cast ".to_string();
                         }
                     }

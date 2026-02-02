@@ -12,6 +12,7 @@ mod animations;
 mod character_creation;
 mod effects;
 mod runtime;
+mod sound;
 mod state;
 mod ui;
 
@@ -32,17 +33,34 @@ fn main() {
     std::fs::create_dir_all("saves").ok();
     std::fs::create_dir_all("saves/characters").ok();
 
+    // Determine asset path - check if we're in dnd-bevy/ or workspace root
+    let asset_path = if std::path::Path::new("assets/sounds").exists() {
+        "assets".to_string()
+    } else if std::path::Path::new("dnd-bevy/assets/sounds").exists() {
+        "dnd-bevy/assets".to_string()
+    } else {
+        "assets".to_string() // fallback
+    };
+
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "D&D: AI Dungeon Master".into(),
-                resolution: (1280., 800.).into(),
-                resizable: true,
-                ..default()
-            }),
-            ..default()
-        }))
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "D&D: AI Dungeon Master".into(),
+                        resolution: (1280., 800.).into(),
+                        resizable: true,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(AssetPlugin {
+                    file_path: asset_path,
+                    ..default()
+                }),
+        )
         .add_plugins(EguiPlugin)
+        .add_plugins(sound::SoundPlugin)
         // App state
         .init_state::<GamePhase>()
         .init_resource::<AppState>()
@@ -77,6 +95,7 @@ fn main() {
             Update,
             (
                 state::handle_worker_responses,
+                state::process_pending_sounds,
                 state::check_pending_session,
                 state::check_pending_character_list,
                 state::check_pending_game_list,

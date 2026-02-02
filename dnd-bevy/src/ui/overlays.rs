@@ -584,7 +584,11 @@ pub fn render_help(ctx: &egui::Context) {
 }
 
 /// Render the settings overlay. Returns true if user wants to return to main menu.
-pub fn render_settings(ctx: &egui::Context, app_state: &mut AppState) -> bool {
+pub fn render_settings(
+    ctx: &egui::Context,
+    app_state: &mut AppState,
+    sound_settings: Option<&mut crate::sound::SoundSettings>,
+) -> bool {
     let mut return_to_menu = false;
 
     let screen = ctx.screen_rect();
@@ -618,6 +622,38 @@ pub fn render_settings(ctx: &egui::Context, app_state: &mut AppState) -> bool {
                         app_state.character_panel_expanded = false;
                     }
                 });
+            });
+
+            ui.add_space(8.0);
+
+            // Audio section
+            ui.collapsing(egui::RichText::new("Audio").strong(), |ui| {
+                if let Some(sound) = sound_settings {
+                    // Mute toggle
+                    ui.horizontal(|ui| {
+                        ui.label("Sound enabled:");
+                        if ui.checkbox(&mut sound.enabled, "").changed() {
+                            // Checkbox already mutates sound.enabled
+                        }
+                    });
+
+                    // Volume slider (only if sound is enabled)
+                    ui.horizontal(|ui| {
+                        ui.label("Volume:");
+                        ui.add_enabled(
+                            sound.enabled,
+                            egui::Slider::new(&mut sound.volume, 0.0..=1.0)
+                                .show_value(false)
+                                .clamping(egui::SliderClamping::Always),
+                        );
+                        ui.label(format!("{}%", (sound.volume * 100.0) as i32));
+                    });
+                } else {
+                    ui.label(
+                        egui::RichText::new("Audio settings unavailable")
+                            .color(egui::Color32::GRAY),
+                    );
+                }
             });
 
             ui.add_space(8.0);
@@ -681,6 +717,7 @@ pub fn render_settings(ctx: &egui::Context, app_state: &mut AppState) -> bool {
             // Game actions
             ui.horizontal(|ui| {
                 if ui.button("Return to Main Menu").clicked() {
+                    app_state.play_click();
                     return_to_menu = true;
                     app_state.overlay = ActiveOverlay::None;
                 }
@@ -692,6 +729,7 @@ pub fn render_settings(ctx: &egui::Context, app_state: &mut AppState) -> bool {
                     )
                     .clicked()
                 {
+                    app_state.play_click();
                     std::process::exit(0);
                 }
             });
@@ -795,6 +833,7 @@ pub fn render_load_character(
                         .add_enabled(can_load, egui::Button::new("Load & Play"))
                         .clicked()
                     {
+                        app_state.play_click();
                         if let Some(idx) = save_list.selected {
                             let path = save_list.saves[idx].path.clone();
                             // Load the character using the shared runtime
@@ -813,6 +852,7 @@ pub fn render_load_character(
                     }
 
                     if ui.button("Cancel").clicked() {
+                        app_state.play_click();
                         app_state.overlay = ActiveOverlay::None;
                     }
                 });
@@ -910,12 +950,14 @@ pub fn render_load_game(
                         .add_enabled(can_load, egui::Button::new("Load Game"))
                         .clicked()
                     {
+                        app_state.play_click();
                         if let Some(idx) = save_list.selected {
                             selected_path = Some(save_list.saves[idx].path.clone());
                         }
                     }
 
                     if ui.button("Cancel").clicked() {
+                        app_state.play_click();
                         app_state.overlay = ActiveOverlay::None;
                     }
                 });
@@ -1142,6 +1184,7 @@ pub fn render_onboarding(
                 // Back button (not on first page)
                 if onboarding.current_page > 0 {
                     if ui.button("← Back").clicked() {
+                        app_state.play_click();
                         onboarding.current_page -= 1;
                     }
                 }
@@ -1155,6 +1198,7 @@ pub fn render_onboarding(
                             )
                             .clicked()
                         {
+                            app_state.play_click();
                             onboarding.current_page += 1;
                         }
                     } else {
@@ -1166,6 +1210,7 @@ pub fn render_onboarding(
                             )
                             .clicked()
                         {
+                            app_state.play_click();
                             onboarding.complete();
                             app_state.overlay = ActiveOverlay::None;
                             completed = true;
@@ -1182,6 +1227,7 @@ pub fn render_onboarding(
                             )
                             .clicked()
                         {
+                            app_state.play_click();
                             onboarding.complete();
                             app_state.overlay = ActiveOverlay::None;
                             completed = true;

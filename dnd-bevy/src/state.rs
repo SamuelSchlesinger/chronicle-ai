@@ -444,6 +444,8 @@ pub struct AppState {
     pub saved_input: String,
     /// Spell currently being viewed in detail (None if not viewing any).
     pub viewing_spell: Option<String>,
+    /// Queued UI sounds to play (processed by separate system).
+    pub pending_sounds: Vec<crate::sound::SoundEffect>,
 }
 
 impl Default for AppState {
@@ -470,6 +472,7 @@ impl Default for AppState {
             history_index: -1,
             saved_input: String::new(),
             viewing_spell: None,
+            pending_sounds: Vec::new(),
         }
     }
 }
@@ -581,6 +584,21 @@ impl AppState {
             self.input_text = cmd.clone();
         }
     }
+
+    /// Queue a click sound to be played.
+    pub fn play_click(&mut self) {
+        self.pending_sounds.push(crate::sound::SoundEffect::Click);
+    }
+}
+
+/// System to process pending UI sounds.
+pub fn process_pending_sounds(
+    mut app_state: ResMut<AppState>,
+    mut sound_writer: EventWriter<crate::sound::SoundEffect>,
+) {
+    for sound in app_state.pending_sounds.drain(..) {
+        sound_writer.send(sound);
+    }
 }
 
 /// System to clear old status messages after 3 seconds.
@@ -598,6 +616,7 @@ pub fn handle_worker_responses(
     mut app_state: ResMut<AppState>,
     time: Res<Time>,
     mut commands: Commands,
+    mut sound_writer: EventWriter<crate::sound::SoundEffect>,
 ) {
     // Take the receiver temporarily to check for messages
     let response = if let Some(rx) = &mut app_state.response_rx {
@@ -617,6 +636,7 @@ pub fn handle_worker_responses(
                     &effect,
                     &mut commands,
                     time.elapsed_secs_f64(),
+                    &mut sound_writer,
                 );
             }
             WorkerResponse::Complete {
@@ -917,21 +937,24 @@ async fn process_player_action(
     }
 
     let stream_tx = response_tx.clone();
+    let effect_tx = response_tx.clone();
 
     let result = session
-        .player_action_streaming(input, |text| {
-            let _ = stream_tx.try_send(WorkerResponse::StreamChunk(text.to_string()));
-        })
+        .player_action_streaming_with_effects(
+            input,
+            |text| {
+                let _ = stream_tx.try_send(WorkerResponse::StreamChunk(text.to_string()));
+            },
+            |effect| {
+                // Stream effects in real-time for immediate sound/animation
+                let _ = effect_tx.try_send(WorkerResponse::Effect(effect.clone()));
+            },
+        )
         .await;
 
     match result {
         Ok(response) => {
-            // Send individual effects for immediate UI updates
-            for effect in &response.effects {
-                let _ = response_tx
-                    .send(WorkerResponse::Effect(effect.clone()))
-                    .await;
-            }
+            // Effects already sent in real-time via callback
 
             // Build world update
             let world_update = WorldUpdate::from_session(session);
