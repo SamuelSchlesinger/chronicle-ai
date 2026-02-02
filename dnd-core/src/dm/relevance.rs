@@ -259,10 +259,103 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_json_with_whitespace() {
+        let text = r#"
+  {"triggered_consequences": []}
+  "#;
+        let result = extract_json(text);
+        assert!(result.starts_with('{'));
+        assert!(result.ends_with('}'));
+    }
+
+    #[test]
+    fn test_extract_json_nested_backticks() {
+        // If there's text before the code block
+        let text = r#"Here is the JSON:
+```json
+{"triggered_consequences": ["id1"]}
+```"#;
+        let expected = r#"{"triggered_consequences": ["id1"]}"#;
+        assert_eq!(extract_json(text), expected);
+    }
+
+    #[test]
     fn test_relevance_result_empty() {
         let result = RelevanceResult::default();
         assert!(result.is_empty());
         assert!(!result.has_triggered_consequences());
         assert!(!result.has_relevant_context());
+    }
+
+    #[test]
+    fn test_relevance_result_with_consequences() {
+        let result = RelevanceResult {
+            triggered_consequences: vec![ConsequenceId::new()],
+            relevant_facts: vec![],
+            relevant_entities: vec![],
+            explanation: None,
+        };
+        assert!(!result.is_empty());
+        assert!(result.has_triggered_consequences());
+        assert!(!result.has_relevant_context());
+    }
+
+    #[test]
+    fn test_relevance_result_with_facts() {
+        let result = RelevanceResult {
+            triggered_consequences: vec![],
+            relevant_facts: vec![FactId::new()],
+            relevant_entities: vec![],
+            explanation: None,
+        };
+        assert!(!result.is_empty());
+        assert!(!result.has_triggered_consequences());
+        assert!(result.has_relevant_context());
+    }
+
+    #[test]
+    fn test_relevance_result_with_entities() {
+        let result = RelevanceResult {
+            triggered_consequences: vec![],
+            relevant_facts: vec![],
+            relevant_entities: vec![EntityId::new()],
+            explanation: None,
+        };
+        assert!(!result.is_empty());
+        assert!(!result.has_triggered_consequences());
+        assert!(result.has_relevant_context());
+    }
+
+    #[test]
+    fn test_relevance_result_with_explanation() {
+        let result = RelevanceResult {
+            triggered_consequences: vec![],
+            relevant_facts: vec![],
+            relevant_entities: vec![],
+            explanation: Some("Test explanation".to_string()),
+        };
+        // Having only an explanation doesn't make it non-empty
+        assert!(result.is_empty());
+        assert_eq!(result.explanation, Some("Test explanation".to_string()));
+    }
+
+    #[test]
+    fn test_relevance_response_parsing() {
+        // Test that RelevanceResponse can be deserialized
+        let json = r#"{"triggered_consequences": ["id1", "id2"], "relevant_entities": ["Guard", "King"], "explanation": "Test"}"#;
+        let response: RelevanceResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(response.triggered_consequences.len(), 2);
+        assert_eq!(response.relevant_entities.len(), 2);
+        assert_eq!(response.explanation, Some("Test".to_string()));
+    }
+
+    #[test]
+    fn test_relevance_response_defaults() {
+        // Test that missing fields default correctly
+        let json = r#"{}"#;
+        let response: RelevanceResponse = serde_json::from_str(json).unwrap();
+        assert!(response.triggered_consequences.is_empty());
+        assert!(response.relevant_entities.is_empty());
+        assert!(response.explanation.is_none());
     }
 }

@@ -260,6 +260,13 @@ mod tests {
     }
 
     #[test]
+    fn test_with_budget() {
+        let memory = DmMemory::with_budget(50_000);
+        assert_eq!(memory.token_budget, 50_000);
+        assert_eq!(memory.message_count(), 0);
+    }
+
+    #[test]
     fn test_add_messages() {
         let mut memory = DmMemory::new();
         memory.add_player_message("I attack the goblin");
@@ -289,6 +296,24 @@ mod tests {
     }
 
     #[test]
+    fn test_trim_removes_oldest_first() {
+        let mut memory = DmMemory::new();
+
+        // Add messages numbered 0-24
+        for i in 0..25 {
+            memory.add_player_message(&format!("Message {i}"));
+        }
+
+        // Should have kept the last 20 (messages 5-24)
+        assert_eq!(memory.message_count(), MAX_RECENT_MESSAGES);
+
+        let messages = memory.get_messages();
+        // First message should be "Message 5" (messages 0-4 were trimmed)
+        let first_content = messages[0].content.iter().find_map(|b| b.as_text());
+        assert!(first_content.unwrap().contains("Message 5"));
+    }
+
+    #[test]
     fn test_get_messages() {
         let mut memory = DmMemory::new();
         memory.add_player_message("Hello");
@@ -296,5 +321,91 @@ mod tests {
 
         let messages = memory.get_messages();
         assert_eq!(messages.len(), 2);
+    }
+
+    #[test]
+    fn test_build_context_empty() {
+        let memory = DmMemory::new();
+        let context = memory.build_context();
+        assert!(context.is_empty());
+    }
+
+    #[test]
+    fn test_build_context_with_summary() {
+        let mut memory = DmMemory::new();
+        memory.set_summary("The party defeated the dragon.");
+
+        let context = memory.build_context();
+        assert!(context.contains("Previous Session Summary"));
+        assert!(context.contains("defeated the dragon"));
+    }
+
+    #[test]
+    fn test_build_context_with_facts() {
+        let mut memory = DmMemory::new();
+        memory.add_fact(FactCategory::NPC, "Gandalf the Grey");
+        memory.add_fact(FactCategory::Location, "The Shire");
+        memory.add_fact(FactCategory::Quest, "Destroy the Ring");
+        memory.add_fact(FactCategory::Lore, "Sauron was defeated");
+        memory.add_fact(FactCategory::Other, "It's raining");
+
+        let context = memory.build_context();
+        assert!(context.contains("### NPCs"));
+        assert!(context.contains("Gandalf the Grey"));
+        assert!(context.contains("### Locations"));
+        assert!(context.contains("The Shire"));
+        assert!(context.contains("### Quests"));
+        assert!(context.contains("Destroy the Ring"));
+        assert!(context.contains("### Lore"));
+        assert!(context.contains("Sauron was defeated"));
+        assert!(context.contains("### Other"));
+        assert!(context.contains("It's raining"));
+    }
+
+    #[test]
+    fn test_generate_summary() {
+        let mut memory = DmMemory::new();
+        memory.add_player_message("I enter the tavern");
+        memory.add_dm_message("You see a crowded room");
+        memory.add_player_message("I order an ale");
+        memory.add_dm_message("The bartender nods");
+
+        let summary = memory.generate_summary();
+        assert!(summary.contains("2 exchanges")); // 4 messages = 2 player exchanges
+        assert!(summary.contains("Recent player actions"));
+        assert!(summary.contains("I enter the tavern") || summary.contains("I order an ale"));
+    }
+
+    #[test]
+    fn test_generate_summary_truncates_long_messages() {
+        let mut memory = DmMemory::new();
+        let long_message = "a".repeat(200);
+        memory.add_player_message(&long_message);
+
+        let summary = memory.generate_summary();
+        // Should be truncated to ~100 chars + "..."
+        assert!(summary.contains("..."));
+        assert!(!summary.contains(&"a".repeat(200)));
+    }
+
+    #[test]
+    fn test_clear_conversation() {
+        let mut memory = DmMemory::new();
+        memory.add_player_message("Hello");
+        memory.add_dm_message("Hi there");
+        memory.add_fact(FactCategory::NPC, "Bob the NPC");
+
+        memory.clear_conversation();
+
+        assert_eq!(memory.message_count(), 0);
+        // Facts should be preserved
+        assert_eq!(memory.campaign_facts.len(), 1);
+    }
+
+    #[test]
+    fn test_default_implementation() {
+        let memory = DmMemory::default();
+        assert_eq!(memory.token_budget, 100_000);
+        assert_eq!(memory.message_count(), 0);
     }
 }
