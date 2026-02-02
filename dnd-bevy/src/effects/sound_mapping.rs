@@ -70,6 +70,12 @@ pub fn sound_for_effect(effect: &Effect) -> Option<SoundEffect> {
         | Effect::LocationChanged { .. }
         | Effect::ClassResourceUsed { .. }
         | Effect::RageStarted { .. }
-        | Effect::RageEnded { .. } => None,
+        | Effect::RageEnded { .. }
+        | Effect::QuestCreated { .. }
+        | Effect::QuestObjectiveAdded { .. }
+        | Effect::QuestObjectiveCompleted { .. }
+        | Effect::QuestCompleted { .. }
+        | Effect::QuestFailed { .. }
+        | Effect::QuestUpdated { .. } => None,
     }
 }

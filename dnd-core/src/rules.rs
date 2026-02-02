@@ -325,6 +325,52 @@ pub enum Intent {
         spell_name: Option<String>,
         slot_level: Option<u8>,
     },
+
+    // ========================================================================
+    // Quest Management Intents
+    // ========================================================================
+    /// Create a new quest
+    CreateQuest {
+        name: String,
+        description: String,
+        giver: Option<String>,
+        /// Objectives as (description, is_optional) pairs
+        objectives: Vec<(String, bool)>,
+        rewards: Vec<String>,
+    },
+
+    /// Add an objective to an existing quest
+    AddQuestObjective {
+        quest_name: String,
+        objective: String,
+        optional: bool,
+    },
+
+    /// Complete a specific objective in a quest
+    CompleteObjective {
+        quest_name: String,
+        /// Partial match allowed for objective description
+        objective_description: String,
+    },
+
+    /// Mark a quest as completed
+    CompleteQuest {
+        quest_name: String,
+        completion_note: Option<String>,
+    },
+
+    /// Mark a quest as failed
+    FailQuest {
+        quest_name: String,
+        failure_reason: String,
+    },
+
+    /// Update quest details
+    UpdateQuest {
+        quest_name: String,
+        new_description: Option<String>,
+        add_rewards: Vec<String>,
+    },
 }
 
 /// Initial combatant data for starting combat.
@@ -653,6 +699,50 @@ pub enum Effect {
         character_id: CharacterId,
         reason: String,
     },
+
+    // ========================================================================
+    // Quest Effects
+    // ========================================================================
+    /// A new quest was created
+    QuestCreated {
+        name: String,
+        description: String,
+        giver: Option<String>,
+        objectives: Vec<(String, bool)>,
+        rewards: Vec<String>,
+    },
+
+    /// A quest objective was added
+    QuestObjectiveAdded {
+        quest_name: String,
+        objective: String,
+        optional: bool,
+    },
+
+    /// A quest objective was completed
+    QuestObjectiveCompleted {
+        quest_name: String,
+        objective_description: String,
+    },
+
+    /// A quest was completed
+    QuestCompleted {
+        quest_name: String,
+        completion_note: Option<String>,
+    },
+
+    /// A quest was failed
+    QuestFailed {
+        quest_name: String,
+        failure_reason: String,
+    },
+
+    /// A quest was updated
+    QuestUpdated {
+        quest_name: String,
+        new_description: Option<String>,
+        add_rewards: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -908,6 +998,37 @@ impl RulesEngine {
                 spell_name.as_deref(),
                 slot_level,
             ),
+
+            // Quest management
+            Intent::CreateQuest {
+                name,
+                description,
+                giver,
+                objectives,
+                rewards,
+            } => self.resolve_create_quest(&name, &description, giver.as_deref(), &objectives, &rewards),
+            Intent::AddQuestObjective {
+                quest_name,
+                objective,
+                optional,
+            } => self.resolve_add_quest_objective(&quest_name, &objective, optional),
+            Intent::CompleteObjective {
+                quest_name,
+                objective_description,
+            } => self.resolve_complete_objective(&quest_name, &objective_description),
+            Intent::CompleteQuest {
+                quest_name,
+                completion_note,
+            } => self.resolve_complete_quest(&quest_name, completion_note.as_deref()),
+            Intent::FailQuest {
+                quest_name,
+                failure_reason,
+            } => self.resolve_fail_quest(&quest_name, &failure_reason),
+            Intent::UpdateQuest {
+                quest_name,
+                new_description,
+                add_rewards,
+            } => self.resolve_update_quest(&quest_name, new_description.as_deref(), &add_rewards),
 
             #[allow(unreachable_patterns)]
             _ => Resolution::new("Intent not yet implemented"),
@@ -3148,6 +3269,111 @@ impl RulesEngine {
             description: format!("Used {points} for {metamagic}"),
         })
     }
+
+    // ========================================================================
+    // Quest Resolution Methods
+    // ========================================================================
+
+    fn resolve_create_quest(
+        &self,
+        name: &str,
+        description: &str,
+        giver: Option<&str>,
+        objectives: &[(String, bool)],
+        rewards: &[String],
+    ) -> Resolution {
+        Resolution::new(format!(
+            "Quest Started: \"{}\"{}",
+            name,
+            giver.map(|g| format!(" (from {})", g)).unwrap_or_default()
+        ))
+        .with_effect(Effect::QuestCreated {
+            name: name.to_string(),
+            description: description.to_string(),
+            giver: giver.map(|s| s.to_string()),
+            objectives: objectives.to_vec(),
+            rewards: rewards.to_vec(),
+        })
+    }
+
+    fn resolve_add_quest_objective(
+        &self,
+        quest_name: &str,
+        objective: &str,
+        optional: bool,
+    ) -> Resolution {
+        Resolution::new(format!(
+            "New objective for \"{}\": {}{}",
+            quest_name,
+            objective,
+            if optional { " (optional)" } else { "" }
+        ))
+        .with_effect(Effect::QuestObjectiveAdded {
+            quest_name: quest_name.to_string(),
+            objective: objective.to_string(),
+            optional,
+        })
+    }
+
+    fn resolve_complete_objective(
+        &self,
+        quest_name: &str,
+        objective_description: &str,
+    ) -> Resolution {
+        Resolution::new(format!(
+            "Objective completed for \"{}\": {}",
+            quest_name, objective_description
+        ))
+        .with_effect(Effect::QuestObjectiveCompleted {
+            quest_name: quest_name.to_string(),
+            objective_description: objective_description.to_string(),
+        })
+    }
+
+    fn resolve_complete_quest(&self, quest_name: &str, completion_note: Option<&str>) -> Resolution {
+        Resolution::new(format!(
+            "Quest Completed: \"{}\"{}",
+            quest_name,
+            completion_note
+                .map(|n| format!(" - {}", n))
+                .unwrap_or_default()
+        ))
+        .with_effect(Effect::QuestCompleted {
+            quest_name: quest_name.to_string(),
+            completion_note: completion_note.map(|s| s.to_string()),
+        })
+    }
+
+    fn resolve_fail_quest(&self, quest_name: &str, failure_reason: &str) -> Resolution {
+        Resolution::new(format!(
+            "Quest Failed: \"{}\" - {}",
+            quest_name, failure_reason
+        ))
+        .with_effect(Effect::QuestFailed {
+            quest_name: quest_name.to_string(),
+            failure_reason: failure_reason.to_string(),
+        })
+    }
+
+    fn resolve_update_quest(
+        &self,
+        quest_name: &str,
+        new_description: Option<&str>,
+        add_rewards: &[String],
+    ) -> Resolution {
+        let mut parts = vec![format!("Quest \"{}\" updated", quest_name)];
+        if new_description.is_some() {
+            parts.push("description changed".to_string());
+        }
+        if !add_rewards.is_empty() {
+            parts.push(format!("rewards added: {}", add_rewards.join(", ")));
+        }
+        Resolution::new(parts.join("; ")).with_effect(Effect::QuestUpdated {
+            quest_name: quest_name.to_string(),
+            new_description: new_description.map(|s| s.to_string()),
+            add_rewards: add_rewards.to_vec(),
+        })
+    }
 }
 
 impl Default for RulesEngine {
@@ -3331,6 +3557,23 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
                             },
                         });
                     }
+
+                    // Track spell learning capacity changes for narrative purposes
+                    // (actual spell selection happens via DM tools or character choices)
+                    let old_cantrips = class.cantrips_known_at_level(old_level);
+                    let new_cantrips = class.cantrips_known_at_level(*new_level);
+                    let _cantrips_gained = new_cantrips.saturating_sub(old_cantrips);
+
+                    // For "known" casters, track new spell capacity
+                    if let Some(old_known) = class.spells_known_at_level(old_level) {
+                        if let Some(new_known) = class.spells_known_at_level(*new_level) {
+                            let _spells_gained = new_known.saturating_sub(old_known);
+                            // Player can now learn more spells up to new_known total
+                        }
+                    }
+
+                    // For Wizard, track spellbook expansion
+                    let _wizard_spells_added = class.wizard_spellbook_spells_at_level(*new_level);
                 }
 
                 // Update class resources based on class and level
@@ -3615,6 +3858,93 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
             world.player_character.class_resources.rage_active = false;
             world.player_character.class_resources.rage_damage_bonus = 0;
             world.player_character.class_resources.rage_rounds_remaining = None;
+        }
+
+        // Quest effects
+        Effect::QuestCreated {
+            name,
+            description,
+            giver,
+            objectives,
+            rewards,
+        } => {
+            use crate::world::{Quest, QuestObjective};
+            let mut quest = Quest::new(name.clone(), description.clone());
+            quest.giver = giver.clone();
+            quest.objectives = objectives
+                .iter()
+                .map(|(desc, optional)| QuestObjective {
+                    description: desc.clone(),
+                    completed: false,
+                    optional: *optional,
+                })
+                .collect();
+            quest.rewards = rewards.clone();
+            world.quests.push(quest);
+        }
+
+        Effect::QuestObjectiveAdded {
+            quest_name,
+            objective,
+            optional,
+        } => {
+            use crate::world::QuestObjective;
+            if let Some(quest) = world.quests.iter_mut().find(|q| q.name == *quest_name) {
+                quest.objectives.push(QuestObjective {
+                    description: objective.clone(),
+                    completed: false,
+                    optional: *optional,
+                });
+            }
+        }
+
+        Effect::QuestObjectiveCompleted {
+            quest_name,
+            objective_description,
+        } => {
+            if let Some(quest) = world.quests.iter_mut().find(|q| q.name == *quest_name) {
+                // Find objective by partial match
+                if let Some(obj) = quest.objectives.iter_mut().find(|o| {
+                    o.description
+                        .to_lowercase()
+                        .contains(&objective_description.to_lowercase())
+                }) {
+                    obj.completed = true;
+                }
+            }
+        }
+
+        Effect::QuestCompleted { quest_name, .. } => {
+            use crate::world::QuestStatus;
+            if let Some(quest) = world.quests.iter_mut().find(|q| q.name == *quest_name) {
+                quest.status = QuestStatus::Completed;
+                // Mark all non-optional objectives as complete
+                for obj in &mut quest.objectives {
+                    if !obj.optional {
+                        obj.completed = true;
+                    }
+                }
+            }
+        }
+
+        Effect::QuestFailed { quest_name, .. } => {
+            use crate::world::QuestStatus;
+            if let Some(quest) = world.quests.iter_mut().find(|q| q.name == *quest_name) {
+                quest.status = QuestStatus::Failed;
+            }
+        }
+
+        Effect::QuestUpdated {
+            quest_name,
+            new_description,
+            add_rewards,
+        } => {
+            if let Some(quest) = world.quests.iter_mut().find(|q| q.name == *quest_name) {
+                if let Some(desc) = new_description {
+                    quest.description = desc.clone();
+                }
+                quest.rewards.extend(add_rewards.iter().cloned());
+            }
         }
     }
 }

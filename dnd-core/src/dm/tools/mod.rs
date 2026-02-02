@@ -9,6 +9,7 @@
 //! - `inventory` - Items and currency management
 //! - `class_features` - Class-specific abilities (rage, ki, smite, etc.)
 //! - `world` - Rest, location, story memory, spells, progression
+//! - `quests` - Quest creation, objectives, and completion tracking
 
 mod checks;
 mod class_features;
@@ -17,6 +18,7 @@ mod converters;
 mod info;
 mod inventory;
 mod parsing;
+mod quests;
 mod world;
 
 pub use info::execute_info_tool;
@@ -76,6 +78,13 @@ impl DmTools {
             world::register_consequence(),
             world::cast_spell(),
             world::award_experience(),
+            // Quests
+            quests::create_quest(),
+            quests::add_quest_objective(),
+            quests::complete_objective(),
+            quests::complete_quest(),
+            quests::fail_quest(),
+            quests::update_quest(),
         ]
     }
 }

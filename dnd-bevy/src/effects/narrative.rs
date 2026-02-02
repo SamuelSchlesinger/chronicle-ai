@@ -446,5 +446,58 @@ pub fn narrative_for_effect(effect: &Effect) -> Option<NarrativeOutput> {
             narrative_type: NarrativeType::System,
             status: None,
         }),
+
+        // Quest effects
+        Effect::QuestCreated { name, giver, .. } => {
+            let giver_text = giver
+                .as_ref()
+                .map(|g| format!(" from {g}"))
+                .unwrap_or_default();
+            Some(NarrativeOutput {
+                text: format!("NEW QUEST{giver_text}: {name}"),
+                narrative_type: NarrativeType::System,
+                status: Some(format!("Quest started: {name}")),
+            })
+        }
+
+        Effect::QuestObjectiveAdded {
+            quest_name,
+            objective,
+            ..
+        } => Some(NarrativeOutput {
+            text: format!("New objective for \"{quest_name}\": {objective}"),
+            narrative_type: NarrativeType::System,
+            status: None,
+        }),
+
+        Effect::QuestObjectiveCompleted {
+            quest_name,
+            objective_description,
+        } => Some(NarrativeOutput {
+            text: format!("Objective completed: {objective_description}"),
+            narrative_type: NarrativeType::System,
+            status: Some(format!("Progress on \"{quest_name}\"")),
+        }),
+
+        Effect::QuestCompleted { quest_name, .. } => Some(NarrativeOutput {
+            text: format!("QUEST COMPLETED: {quest_name}!"),
+            narrative_type: NarrativeType::System,
+            status: Some(format!("Completed: {quest_name}")),
+        }),
+
+        Effect::QuestFailed {
+            quest_name,
+            failure_reason,
+        } => Some(NarrativeOutput {
+            text: format!("QUEST FAILED: {quest_name} - {failure_reason}"),
+            narrative_type: NarrativeType::System,
+            status: Some(format!("Failed: {quest_name}")),
+        }),
+
+        Effect::QuestUpdated { quest_name, .. } => Some(NarrativeOutput {
+            text: format!("Quest \"{quest_name}\" updated."),
+            narrative_type: NarrativeType::System,
+            status: None,
+        }),
     }
 }

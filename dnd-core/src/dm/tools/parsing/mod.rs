@@ -6,17 +6,20 @@
 //! - `inventory`: items, equipment, currency
 //! - `class_features`: class-specific abilities
 //! - `world`: rests, locations, facts, spells, experience
+//! - `quests`: quest creation, objectives, completion
 
 mod checks;
 mod class_features;
 mod combat;
 mod inventory;
+mod quests;
 mod world;
 
 pub use checks::parse_checks_tool;
 pub use class_features::parse_class_features_tool;
 pub use combat::parse_combat_tool;
 pub use inventory::parse_inventory_tool;
+pub use quests::parse_quests_tool;
 pub use world::parse_world_tool;
 
 use crate::rules::Intent;
@@ -33,6 +36,7 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
         .or_else(|| parse_inventory_tool(name, input))
         .or_else(|| parse_class_features_tool(name, input, world))
         .or_else(|| parse_world_tool(name, input, world))
+        .or_else(|| parse_quests_tool(name, input))
 }
 
 #[cfg(test)]
