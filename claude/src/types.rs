@@ -1,6 +1,18 @@
 //! Public types for the Claude API client.
 
 /// A completion request to send to Claude.
+///
+/// Use builder methods to configure the request. At minimum, provide messages via [`Request::new`].
+///
+/// # Example
+///
+/// ```
+/// use claude::{Request, Message};
+///
+/// let request = Request::new(vec![Message::user("Hello!")])
+///     .with_system("You are a helpful assistant.")
+///     .with_max_tokens(1024);
+/// ```
 #[derive(Debug, Clone)]
 pub struct Request {
     pub model: Option<String>,
@@ -13,7 +25,7 @@ pub struct Request {
 }
 
 impl Request {
-    /// Create a new request with the given messages.
+    /// Creates a new request with the given messages. Defaults to 4096 max tokens.
     pub fn new(messages: Vec<Message>) -> Self {
         Self {
             model: None,
@@ -26,31 +38,37 @@ impl Request {
         }
     }
 
+    /// Sets the model, overriding the client default.
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
         self
     }
 
+    /// Sets the maximum number of tokens in the response.
     pub fn with_max_tokens(mut self, max_tokens: usize) -> Self {
         self.max_tokens = max_tokens;
         self
     }
 
+    /// Sets the system prompt that guides Claude's behavior.
     pub fn with_system(mut self, system: impl Into<String>) -> Self {
         self.system = Some(system.into());
         self
     }
 
+    /// Sets the sampling temperature (0.0-1.0). Higher values increase randomness.
     pub fn with_temperature(mut self, temperature: f32) -> Self {
         self.temperature = Some(temperature);
         self
     }
 
+    /// Adds tool definitions that Claude can call during the conversation.
     pub fn with_tools(mut self, tools: Vec<Tool>) -> Self {
         self.tools = Some(tools);
         self
     }
 
+    /// Configures how Claude should choose tools.
     pub fn with_tool_choice(mut self, tool_choice: ToolChoice) -> Self {
         self.tool_choice = Some(tool_choice);
         self
@@ -58,6 +76,9 @@ impl Request {
 }
 
 /// A message in the conversation.
+///
+/// Messages alternate between user and assistant roles. Use [`Message::user`]
+/// and [`Message::assistant`] for simple text messages.
 #[derive(Debug, Clone)]
 pub struct Message {
     pub role: Role,
@@ -142,6 +163,8 @@ pub enum ToolChoice {
 }
 
 /// A completion response from Claude.
+///
+/// Contains generated content, usage statistics, and stop reason.
 #[derive(Debug, Clone)]
 pub struct Response {
     pub id: String,
@@ -152,7 +175,9 @@ pub struct Response {
 }
 
 impl Response {
-    /// Get all text content concatenated.
+    /// Gets all text content concatenated into a single string.
+    ///
+    /// Extracts and joins all text blocks, ignoring tool use and other content types.
     pub fn text(&self) -> String {
         self.content
             .iter()

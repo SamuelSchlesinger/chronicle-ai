@@ -17,7 +17,26 @@ const API_BASE: &str = "https://api.anthropic.com/v1";
 const API_VERSION: &str = "2023-06-01";
 pub(crate) const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
 
-/// Claude API client.
+/// Claude API client for making requests to Anthropic's Claude models.
+///
+/// Handles authentication, request serialization, and response parsing.
+/// Supports both synchronous completions and streaming responses.
+///
+/// # Example
+///
+/// ```no_run
+/// use claude::{Claude, Request, Message};
+///
+/// # async fn example() -> Result<(), claude::Error> {
+/// let client = Claude::from_env()?;
+/// let response = client.complete(
+///     Request::new(vec![Message::user("What is the capital of France?")])
+///         .with_system("You are a helpful assistant.")
+/// ).await?;
+/// println!("{}", response.text());
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct Claude {
     client: reqwest::Client,
@@ -26,7 +45,13 @@ pub struct Claude {
 }
 
 impl Claude {
-    /// Create a new Claude client with the given API key.
+    /// Creates a new Claude client with the provided API key.
+    ///
+    /// Initializes with the default model and HTTP timeouts (120s total, 30s connect).
+    ///
+    /// # Arguments
+    ///
+    /// * `api_key` - Your Anthropic API key from <https://console.anthropic.com/>
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
             client: reqwest::Client::builder()
@@ -39,19 +64,34 @@ impl Claude {
         }
     }
 
-    /// Create a Claude client from the ANTHROPIC_API_KEY environment variable.
+    /// Creates a Claude client using the `ANTHROPIC_API_KEY` environment variable.
+    ///
+    /// This is the recommended way to initialize the client, keeping API keys out of source code.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NoApiKey`] if `ANTHROPIC_API_KEY` is not set.
     pub fn from_env() -> Result<Self, Error> {
         let api_key = std::env::var("ANTHROPIC_API_KEY").map_err(|_| Error::NoApiKey)?;
         Ok(Self::new(api_key))
     }
 
-    /// Set the default model for this client.
+    /// Sets the default model for this client.
+    ///
+    /// Can be overridden per-request using [`Request::with_model`].
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = model.into();
         self
     }
 
-    /// Send a completion request and return the full response.
+    /// Sends a completion request and returns the full response.
+    ///
+    /// This is the primary method for non-streaming interactions with Claude.
+    /// Waits for the complete response before returning.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the network request fails or the API returns an error.
     pub async fn complete(&self, request: Request) -> Result<Response, Error> {
         let api_request = self.build_api_request(&request, false);
         let headers = self.build_headers()?;
@@ -82,7 +122,10 @@ impl Claude {
         Ok(self.parse_response(api_response))
     }
 
-    /// Send a completion request and stream the response.
+    /// Sends a completion request and returns a stream of response events.
+    ///
+    /// Use for real-time streaming, which provides better UX for longer responses.
+    /// Events include text deltas, tool use, and message lifecycle events.
     pub async fn stream(
         &self,
         request: Request,
