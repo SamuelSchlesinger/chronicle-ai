@@ -78,6 +78,8 @@ pub struct AppState {
     pub viewing_spell: Option<String>,
     /// Queued UI sounds to play (processed by separate system).
     pub pending_sounds: Vec<crate::sound::SoundEffect>,
+    /// Height of the location panel (resizable).
+    pub location_panel_height: f32,
 }
 
 impl Default for AppState {
@@ -105,6 +107,7 @@ impl Default for AppState {
             saved_input: String::new(),
             viewing_spell: None,
             pending_sounds: Vec::new(),
+            location_panel_height: 60.0, // Default compact height
         }
     }
 }

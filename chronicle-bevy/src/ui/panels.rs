@@ -100,17 +100,13 @@ pub fn render_main_menu(
 /// Render the top bar with title and status.
 pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState, saves_path: &str) {
     egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
+        // Row 1: Campaign name, time, and buttons
         ui.horizontal(|ui| {
             // Game title / campaign name
             ui.heading(
                 egui::RichText::new(&app_state.world.campaign_name)
                     .color(egui::Color32::from_rgb(218, 165, 32)),
             );
-
-            ui.separator();
-
-            // Location
-            ui.label(format!("Location: {}", app_state.world.current_location));
 
             ui.separator();
 
@@ -250,6 +246,73 @@ pub fn render_top_bar(ctx: &egui::Context, app_state: &mut AppState, saves_path:
             });
         });
     });
+}
+
+/// Render the location panel (resizable, between top bar and narrative).
+pub fn render_location_panel(ctx: &egui::Context, app_state: &mut AppState) {
+    // Only show if there's location info
+    let has_description = app_state
+        .world
+        .location_description
+        .as_ref()
+        .map(|d| !d.is_empty())
+        .unwrap_or(false);
+
+    // Minimum height for just the name, larger if there's a description
+    let min_height = 28.0;
+    let max_height = 200.0;
+
+    egui::TopBottomPanel::top("location_panel")
+        .resizable(true)
+        .min_height(min_height)
+        .max_height(max_height)
+        .default_height(if has_description { 60.0 } else { min_height })
+        .frame(
+            egui::Frame::none()
+                .fill(egui::Color32::from_rgb(35, 30, 25))
+                .inner_margin(egui::Margin::symmetric(12.0, 8.0)),
+        )
+        .show(ctx, |ui| {
+            // Use vertical layout with full width
+            ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                // Location name with icon - use horizontal_wrapped for long names
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(egui::RichText::new("📍").size(16.0));
+                    ui.add_space(6.0);
+                    ui.label(
+                        egui::RichText::new(&app_state.world.current_location)
+                            .color(egui::Color32::from_rgb(218, 165, 32))
+                            .strong()
+                            .size(16.0),
+                    );
+                });
+
+                // Description in a scrollable area (if panel is tall enough)
+                if let Some(ref desc) = app_state.world.location_description {
+                    if !desc.is_empty() {
+                        ui.add_space(4.0);
+
+                        // Use remaining space for scrollable description
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                // Set width to available width to ensure wrapping
+                                let available_width = ui.available_width();
+                                ui.set_min_width(available_width);
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(desc)
+                                            .color(egui::Color32::from_rgb(180, 170, 160))
+                                            .italics()
+                                            .size(14.0),
+                                    )
+                                    .wrap(),
+                                );
+                            });
+                    }
+                }
+            });
+        });
 }
 
 /// Render the narrative panel (main story area).

@@ -310,21 +310,23 @@ Look for IMPLIED state changes in the narrative:
 
 Only report changes with high confidence (>0.7). Require explicit evidence in the text.
 
-Respond with ONLY a JSON object (no markdown):
+Respond with ONLY valid JSON (no markdown, no code blocks):
 {{
   "inferred_changes": [
     {{
       "entity_name": "Mira",
       "state_type": "disposition",
       "new_value": "friendly",
-      "evidence": "She smiles warmly and thanks you",
+      "evidence": "She smiles warmly and thanks you for your help",
       "confidence": 0.9,
       "target_entity": null
     }}
   ]
 }}
 
-If no state changes are implied, return empty array: {{"inferred_changes": []}}"#
+IMPORTANT: Each field must be a single JSON value. The "evidence" field must be ONE quoted string containing all evidence text (not multiple comma-separated strings).
+
+If no state changes are implied, return: {{"inferred_changes": []}}"#
         );
 
         let request = Request::new(vec![Message::user(&prompt)])
@@ -337,8 +339,10 @@ If no state changes are implied, return empty array: {{"inferred_changes": []}}"
 
         // Parse response
         let json_str = extract_json(&response_text);
-        let parsed: StateInferenceResponse = serde_json::from_str(json_str)
-            .map_err(|e| RelevanceError::ParseError(format!("{e}: {json_str}")))?;
+        // Try to fix common malformations (e.g., comma-separated strings for evidence)
+        let sanitized = sanitize_json(json_str);
+        let parsed: StateInferenceResponse = serde_json::from_str(&sanitized)
+            .map_err(|e| RelevanceError::ParseError(format!("{e}: {sanitized}")))?;
 
         // Filter by confidence and convert
         let changes: Vec<InferredStateChange> = parsed
@@ -359,7 +363,7 @@ If no state changes are implied, return empty array: {{"inferred_changes": []}}"
     }
 }
 
-/// Extract JSON from a response that might have markdown code blocks.
+/// Extract JSON from a response that might have markdown code blocks or trailing text.
 fn extract_json(text: &str) -> &str {
     let text = text.trim();
 
@@ -379,8 +383,120 @@ fn extract_json(text: &str) -> &str {
         }
     }
 
+    // Handle JSON with trailing text (e.g., "{"inferred_changes": []}\n\nExplanation: ...")
+    // Find the first '{' and match braces to find the complete JSON object
+    if let Some(start) = text.find('{') {
+        let bytes = text.as_bytes();
+        let mut depth = 0;
+        let mut in_string = false;
+        let mut escape_next = false;
+
+        for (i, &byte) in bytes[start..].iter().enumerate() {
+            if escape_next {
+                escape_next = false;
+                continue;
+            }
+
+            match byte {
+                b'\\' if in_string => escape_next = true,
+                b'"' => in_string = !in_string,
+                b'{' if !in_string => depth += 1,
+                b'}' if !in_string => {
+                    depth -= 1;
+                    if depth == 0 {
+                        // Found the end of the JSON object
+                        return &text[start..=start + i];
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     // Just return the text as-is
     text
+}
+
+/// Try to fix common JSON malformations from AI output.
+///
+/// Handles cases like:
+/// `"evidence": "foo", "bar", "baz",` → `"evidence": "foo; bar; baz",`
+fn sanitize_json(text: &str) -> String {
+    // Look for the pattern: "evidence": "...", "...", "...",
+    // where multiple quoted strings appear after the evidence key
+    let evidence_key = r#""evidence":"#;
+
+    if let Some(start_idx) = text.find(evidence_key) {
+        let after_key = &text[start_idx + evidence_key.len()..];
+        let after_key_trimmed = after_key.trim_start();
+
+        // Should start with a quote
+        if !after_key_trimmed.starts_with('"') {
+            return text.to_string();
+        }
+
+        // Collect all quoted strings until we hit a non-string value or valid key
+        let mut strings = Vec::new();
+        let mut remaining = after_key_trimmed;
+
+        loop {
+            if !remaining.starts_with('"') {
+                break;
+            }
+
+            // Find the end of this string (handle escaped quotes)
+            let content_start = 1;
+            let mut i = content_start;
+            let chars: Vec<char> = remaining.chars().collect();
+
+            while i < chars.len() {
+                if chars[i] == '"' && (i == 0 || chars[i - 1] != '\\') {
+                    break;
+                }
+                i += 1;
+            }
+
+            if i >= chars.len() {
+                break; // Malformed, give up
+            }
+
+            let string_content: String = chars[content_start..i].iter().collect();
+            strings.push(string_content);
+
+            // Move past the closing quote
+            remaining = &remaining[i + 1..];
+            remaining = remaining.trim_start();
+
+            // Check if there's a comma followed by another string
+            if remaining.starts_with(',') {
+                remaining = remaining[1..].trim_start();
+                // If next char is a quote, continue; otherwise we're done
+                if !remaining.starts_with('"') {
+                    break;
+                }
+                // Check if this is a key (has colon after the string)
+                if let Some(quote_end) = remaining[1..].find('"') {
+                    let after_string = remaining[quote_end + 2..].trim_start();
+                    if after_string.starts_with(':') {
+                        // This is a key, not a continuation
+                        break;
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        // If we found multiple strings, combine them
+        if strings.len() > 1 {
+            let combined = strings.join("; ");
+            let before = &text[..start_idx + evidence_key.len()];
+            let fixed = format!(r#" "{}","#, combined);
+            return format!("{}{}{}", before, fixed, remaining);
+        }
+    }
+
+    text.to_string()
 }
 
 #[cfg(test)]
@@ -429,6 +545,37 @@ mod tests {
 {"triggered_consequences": ["id1"]}
 ```"#;
         let expected = r#"{"triggered_consequences": ["id1"]}"#;
+        assert_eq!(extract_json(text), expected);
+    }
+
+    #[test]
+    fn test_extract_json_with_trailing_explanation() {
+        // JSON followed by explanation text (no markdown)
+        let text = r#"{"inferred_changes": []}
+
+Explanation: After carefully analyzing the narrative, I found no implied state changes."#;
+        let expected = r#"{"inferred_changes": []}"#;
+        assert_eq!(extract_json(text), expected);
+    }
+
+    #[test]
+    fn test_extract_json_with_nested_braces() {
+        // JSON with nested objects followed by trailing text
+        let text = r#"{"inferred_changes": [{"entity_name": "Test", "data": {"nested": true}}]}
+
+Some trailing explanation here."#;
+        let expected =
+            r#"{"inferred_changes": [{"entity_name": "Test", "data": {"nested": true}}]}"#;
+        assert_eq!(extract_json(text), expected);
+    }
+
+    #[test]
+    fn test_extract_json_with_braces_in_strings() {
+        // JSON with braces inside string values
+        let text = r#"{"evidence": "The guard said {hello} to you"}
+
+Explanation: ..."#;
+        let expected = r#"{"evidence": "The guard said {hello} to you"}"#;
         assert_eq!(extract_json(text), expected);
     }
 
@@ -510,5 +657,48 @@ mod tests {
         assert!(response.triggered_consequences.is_empty());
         assert!(response.relevant_entities.is_empty());
         assert!(response.explanation.is_none());
+    }
+
+    #[test]
+    fn test_sanitize_json_malformed_evidence() {
+        // Test the exact error pattern from the bug report
+        let malformed = r#"{
+  "inferred_changes": [
+    {
+      "entity_name": "Protagonist",
+      "state_type": "disposition",
+      "new_value": "enraged",
+      "evidence": "rage-fueled charge", "rage burns bright", "seeking a target for your fury",
+      "confidence": 0.9,
+      "target_entity": null
+    }
+  ]
+}"#;
+        let sanitized = sanitize_json(malformed);
+
+        // The sanitized version should be valid JSON
+        let parsed: Result<StateInferenceResponse, _> = serde_json::from_str(&sanitized);
+        assert!(parsed.is_ok(), "Sanitized JSON should parse: {}", sanitized);
+
+        // And the evidence should be combined
+        let parsed = parsed.unwrap();
+        assert_eq!(parsed.inferred_changes.len(), 1);
+        assert!(parsed.inferred_changes[0]
+            .evidence
+            .contains("rage-fueled charge"));
+        assert!(parsed.inferred_changes[0]
+            .evidence
+            .contains("rage burns bright"));
+    }
+
+    #[test]
+    fn test_sanitize_json_valid_unchanged() {
+        // Valid JSON should pass through unchanged
+        let valid = r#"{"inferred_changes": [{"entity_name": "Test", "state_type": "status", "new_value": "ok", "evidence": "single string", "confidence": 0.8, "target_entity": null}]}"#;
+        let sanitized = sanitize_json(valid);
+
+        // Should parse the same
+        let parsed: StateInferenceResponse = serde_json::from_str(&sanitized).unwrap();
+        assert_eq!(parsed.inferred_changes[0].evidence, "single string");
     }
 }

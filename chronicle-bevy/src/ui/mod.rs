@@ -154,6 +154,7 @@ pub fn main_ui_system(
             // 1. Top/bottom panels and side panels first (they claim space)
             // 2. CentralPanel last (fills remaining space)
             panels::render_top_bar(ctx, &mut app_state, &config.saves_path);
+            panels::render_location_panel(ctx, &mut app_state);
             panels::render_character_panel(ctx, &mut app_state);
             input::render_input_panel(ctx, &mut app_state);
             // CentralPanel must come after side/top/bottom panels

@@ -33,6 +33,8 @@ pub struct WorldUpdate {
     pub player_speed: u32,
     /// Current location name.
     pub current_location: String,
+    /// Current location description.
+    pub location_description: Option<String>,
     /// Campaign name.
     pub campaign_name: String,
     /// Active conditions affecting the player.
@@ -85,6 +87,7 @@ impl Default for WorldUpdate {
             player_initiative: 0,
             player_speed: 30,
             current_location: "Unknown".to_string(),
+            location_description: None,
             campaign_name: "New Campaign".to_string(),
             conditions: Vec::new(),
             death_saves: DeathSaves::default(),
@@ -127,6 +130,11 @@ impl WorldUpdate {
             player_initiative: character.initiative_modifier(),
             player_speed: character.speed.walk,
             current_location: world.current_location.name.clone(),
+            location_description: if world.current_location.description.is_empty() {
+                None
+            } else {
+                Some(world.current_location.description.clone())
+            },
             campaign_name: world.campaign_name.clone(),
             conditions: character.conditions.iter().map(|c| c.condition).collect(),
             death_saves: character.death_saves.clone(),
