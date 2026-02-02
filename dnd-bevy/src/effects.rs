@@ -397,10 +397,29 @@ pub fn process_effect(
             new_total,
             reason,
         } => {
-            let action = if *amount >= 0.0 { "Gained" } else { "Spent" };
+            let action = if *amount >= 0 { "Gained" } else { "Spent" };
             app_state.add_narrative(
                 format!(
-                    "{} {:.0} gp ({}). Total: {:.0} gp",
+                    "{} {} gp ({}). Total: {} gp",
+                    action,
+                    amount.abs(),
+                    reason,
+                    new_total
+                ),
+                NarrativeType::System,
+                time,
+            );
+        }
+
+        Effect::SilverChanged {
+            amount,
+            new_total,
+            reason,
+        } => {
+            let action = if *amount >= 0 { "Gained" } else { "Spent" };
+            app_state.add_narrative(
+                format!(
+                    "{} {} sp ({}). Total: {} sp",
                     action,
                     amount.abs(),
                     reason,

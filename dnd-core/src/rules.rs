@@ -203,7 +203,10 @@ pub enum Intent {
     },
 
     /// Adjust the player's gold
-    AdjustGold { amount: f32, reason: String },
+    AdjustGold { amount: i32, reason: String },
+
+    /// Adjust the player's silver
+    AdjustSilver { amount: i32, reason: String },
 
     /// Make a death saving throw (when at 0 HP)
     DeathSave { character_id: CharacterId },
@@ -548,8 +551,15 @@ pub enum Effect {
 
     /// Gold was added or removed
     GoldChanged {
-        amount: f32,
-        new_total: f32,
+        amount: i32,
+        new_total: i32,
+        reason: String,
+    },
+
+    /// Silver was added or removed
+    SilverChanged {
+        amount: i32,
+        new_total: i32,
         reason: String,
     },
 
@@ -787,6 +797,9 @@ impl RulesEngine {
             } => self.resolve_use_item(world, &item_name, target_id),
             Intent::AdjustGold { amount, reason } => {
                 self.resolve_adjust_gold(world, amount, &reason)
+            }
+            Intent::AdjustSilver { amount, reason } => {
+                self.resolve_adjust_silver(world, amount, &reason)
             }
             Intent::DeathSave { character_id } => self.resolve_death_save(world, character_id),
             Intent::ConcentrationCheck {
@@ -2217,19 +2230,19 @@ impl RulesEngine {
         }
     }
 
-    fn resolve_adjust_gold(&self, world: &GameWorld, amount: f32, reason: &str) -> Resolution {
+    fn resolve_adjust_gold(&self, world: &GameWorld, amount: i32, reason: &str) -> Resolution {
         let character = &world.player_character;
         let new_total = character.inventory.gold + amount;
 
-        if new_total < 0.0 {
+        if new_total < 0 {
             Resolution::new(format!(
-                "{} doesn't have enough gold (has {:.0} gp, needs {:.0} gp)",
+                "{} doesn't have enough gold (has {} gp, needs {} gp)",
                 character.name, character.inventory.gold, -amount
             ))
         } else {
-            let action = if amount >= 0.0 { "gains" } else { "spends" };
+            let action = if amount >= 0 { "gains" } else { "spends" };
             Resolution::new(format!(
-                "{} {} {:.0} gp {} (now has {:.0} gp)",
+                "{} {} {} gp {} (now has {} gp)",
                 character.name,
                 action,
                 amount.abs(),
@@ -2237,6 +2250,33 @@ impl RulesEngine {
                 new_total
             ))
             .with_effect(Effect::GoldChanged {
+                amount,
+                new_total,
+                reason: reason.to_string(),
+            })
+        }
+    }
+
+    fn resolve_adjust_silver(&self, world: &GameWorld, amount: i32, reason: &str) -> Resolution {
+        let character = &world.player_character;
+        let new_total = character.inventory.silver + amount;
+
+        if new_total < 0 {
+            Resolution::new(format!(
+                "{} doesn't have enough silver (has {} sp, needs {} sp)",
+                character.name, character.inventory.silver, -amount
+            ))
+        } else {
+            let action = if amount >= 0 { "gains" } else { "spends" };
+            Resolution::new(format!(
+                "{} {} {} sp {} (now has {} sp)",
+                character.name,
+                action,
+                amount.abs(),
+                reason,
+                new_total
+            ))
+            .with_effect(Effect::SilverChanged {
                 amount,
                 new_total,
                 reason: reason.to_string(),
@@ -3408,6 +3448,9 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
         Effect::ItemUsed { .. } => {}
         Effect::GoldChanged { new_total, .. } => {
             world.player_character.inventory.gold = *new_total;
+        }
+        Effect::SilverChanged { new_total, .. } => {
+            world.player_character.inventory.silver = *new_total;
         }
         // AcChanged is informational - AC is recalculated from equipment
         Effect::AcChanged { .. } => {}

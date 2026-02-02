@@ -1011,7 +1011,10 @@ pub enum ItemType {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Inventory {
     pub items: Vec<Item>,
-    pub gold: f32,
+    /// Gold pieces (1 gp = 10 sp)
+    pub gold: i32,
+    /// Silver pieces (10 sp = 1 gp)
+    pub silver: i32,
 }
 
 // ============================================================================
@@ -1341,13 +1344,24 @@ impl Inventory {
     }
 
     /// Adjust gold amount. Returns new total or error if insufficient funds.
-    pub fn adjust_gold(&mut self, amount: f32) -> Result<f32, &'static str> {
+    pub fn adjust_gold(&mut self, amount: i32) -> Result<i32, &'static str> {
         let new_total = self.gold + amount;
-        if new_total < 0.0 {
+        if new_total < 0 {
             Err("Insufficient gold")
         } else {
             self.gold = new_total;
             Ok(self.gold)
+        }
+    }
+
+    /// Adjust silver amount. Returns new total or error if insufficient funds.
+    pub fn adjust_silver(&mut self, amount: i32) -> Result<i32, &'static str> {
+        let new_total = self.silver + amount;
+        if new_total < 0 {
+            Err("Insufficient silver")
+        } else {
+            self.silver = new_total;
+            Ok(self.silver)
         }
     }
 }
@@ -1687,7 +1701,8 @@ impl Character {
             languages: vec!["Common".to_string()],
             inventory: Inventory {
                 items: Vec::new(),
-                gold: 15.0, // Starting gold
+                gold: 15, // Starting gold
+                silver: 0,
             },
             equipment: Equipment::default(),
             race: Race {
@@ -2527,19 +2542,39 @@ mod tests {
     #[test]
     fn test_inventory_gold() {
         let mut inventory = Inventory {
-            gold: 100.0,
+            gold: 100,
+            silver: 0,
             ..Default::default()
         };
 
-        assert!(inventory.adjust_gold(50.0).is_ok());
-        assert_eq!(inventory.gold, 150.0);
+        assert!(inventory.adjust_gold(50).is_ok());
+        assert_eq!(inventory.gold, 150);
 
-        assert!(inventory.adjust_gold(-100.0).is_ok());
-        assert_eq!(inventory.gold, 50.0);
+        assert!(inventory.adjust_gold(-100).is_ok());
+        assert_eq!(inventory.gold, 50);
 
         // Can't go negative
-        assert!(inventory.adjust_gold(-100.0).is_err());
-        assert_eq!(inventory.gold, 50.0);
+        assert!(inventory.adjust_gold(-100).is_err());
+        assert_eq!(inventory.gold, 50);
+    }
+
+    #[test]
+    fn test_inventory_silver() {
+        let mut inventory = Inventory {
+            gold: 0,
+            silver: 50,
+            ..Default::default()
+        };
+
+        assert!(inventory.adjust_silver(25).is_ok());
+        assert_eq!(inventory.silver, 75);
+
+        assert!(inventory.adjust_silver(-50).is_ok());
+        assert_eq!(inventory.silver, 25);
+
+        // Can't go negative
+        assert!(inventory.adjust_silver(-50).is_err());
+        assert_eq!(inventory.silver, 25);
     }
 
     #[test]

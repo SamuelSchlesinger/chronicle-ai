@@ -38,6 +38,7 @@ impl DmTools {
             Self::equip_item(),
             Self::unequip_item(),
             Self::adjust_gold(),
+            Self::adjust_silver(),
             Self::show_inventory(),
             Self::death_save(),
             Self::concentration_check(),
@@ -938,13 +939,13 @@ impl DmTools {
     fn adjust_gold() -> Tool {
         Tool {
             name: "adjust_gold".to_string(),
-            description: "Add or remove gold from the player. Positive values add gold, negative values remove it.".to_string(),
+            description: "Add or remove gold pieces (gp) from the player. Use this whenever the player receives or spends gold. 1 gp = 10 sp.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
                     "amount": {
-                        "type": "number",
-                        "description": "Amount of gold to add (positive) or remove (negative)"
+                        "type": "integer",
+                        "description": "Amount of gold pieces to add (positive) or remove (negative)"
                     },
                     "reason": {
                         "type": "string",
@@ -956,10 +957,31 @@ impl DmTools {
         }
     }
 
+    fn adjust_silver() -> Tool {
+        Tool {
+            name: "adjust_silver".to_string(),
+            description: "Add or remove silver pieces (sp) from the player. Use this whenever the player receives or spends silver. 10 sp = 1 gp.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "amount": {
+                        "type": "integer",
+                        "description": "Amount of silver pieces to add (positive) or remove (negative)"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the silver change (e.g., 'tip from traveler', 'buying ale', 'found in pocket')"
+                    }
+                },
+                "required": ["amount"]
+            }),
+        }
+    }
+
     fn show_inventory() -> Tool {
         Tool {
             name: "show_inventory".to_string(),
-            description: "Display the player's current inventory, equipment, and gold. Use this to check what items they have.".to_string(),
+            description: "Display the player's current inventory, equipment, gold, and silver. Use this to check what items and currency they have.".to_string(),
             input_schema: json!({
                 "type": "object",
                 "properties": {},
@@ -1210,12 +1232,20 @@ pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<I
             Some(Intent::UnequipItem { slot })
         }
         "adjust_gold" => {
-            let amount = input["amount"].as_f64()? as f32;
+            let amount = input["amount"].as_i64()? as i32;
             let reason = input["reason"]
                 .as_str()
                 .unwrap_or("gold adjustment")
                 .to_string();
             Some(Intent::AdjustGold { amount, reason })
+        }
+        "adjust_silver" => {
+            let amount = input["amount"].as_i64()? as i32;
+            let reason = input["reason"]
+                .as_str()
+                .unwrap_or("silver adjustment")
+                .to_string();
+            Some(Intent::AdjustSilver { amount, reason })
         }
         "death_save" => Some(Intent::DeathSave {
             character_id: world.player_character.id,
@@ -1395,8 +1425,11 @@ fn format_inventory(world: &GameWorld) -> String {
 
     output.push_str(&format!("=== {}'s Inventory ===\n\n", character.name));
 
-    // Gold
-    output.push_str(&format!("Gold: {:.0} gp\n\n", character.inventory.gold));
+    // Currency
+    output.push_str(&format!(
+        "Currency: {} gp, {} sp\n\n",
+        character.inventory.gold, character.inventory.silver
+    ));
 
     // Current AC
     output.push_str(&format!("Current AC: {}\n\n", character.current_ac()));
@@ -1898,6 +1931,8 @@ mod tests {
         assert!(result.is_some());
 
         let inventory = result.unwrap();
-        assert!(inventory.contains("Gold"));
+        assert!(inventory.contains("Currency"));
+        assert!(inventory.contains("gp"));
+        assert!(inventory.contains("sp"));
     }
 }

@@ -108,8 +108,10 @@ pub struct WorldUpdate {
     pub conditions: Vec<Condition>,
     /// Death save progress (when at 0 HP).
     pub death_saves: DeathSaves,
-    /// Player's gold.
-    pub gold: f32,
+    /// Player's gold pieces.
+    pub gold: i32,
+    /// Player's silver pieces.
+    pub silver: i32,
     /// Equipped weapon name (if any).
     pub equipped_weapon: Option<String>,
     /// Equipped armor name (if any).
@@ -155,7 +157,8 @@ impl Default for WorldUpdate {
             campaign_name: "New Campaign".to_string(),
             conditions: Vec::new(),
             death_saves: DeathSaves::default(),
-            gold: 0.0,
+            gold: 0,
+            silver: 0,
             equipped_weapon: None,
             equipped_armor: None,
             inventory_items: Vec::new(),
@@ -197,6 +200,7 @@ impl WorldUpdate {
             conditions: character.conditions.iter().map(|c| c.condition).collect(),
             death_saves: character.death_saves.clone(),
             gold: character.inventory.gold,
+            silver: character.inventory.silver,
             equipped_weapon: character
                 .equipment
                 .main_hand

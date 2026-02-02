@@ -20,12 +20,17 @@ pub fn render_inventory(ctx: &egui::Context, app_state: &AppState) {
         .default_size([width, height])
         .max_size([500.0, 600.0])
         .show(ctx, |ui| {
-            // Gold
+            // Currency
             ui.horizontal(|ui| {
-                ui.label("Gold:");
+                ui.label("Currency:");
                 ui.label(
-                    egui::RichText::new(format!("{:.0} gp", app_state.world.gold))
+                    egui::RichText::new(format!("{} gp", app_state.world.gold))
                         .color(egui::Color32::from_rgb(218, 165, 32))
+                        .strong(),
+                );
+                ui.label(
+                    egui::RichText::new(format!("{} sp", app_state.world.silver))
+                        .color(egui::Color32::from_rgb(192, 192, 192))
                         .strong(),
                 );
             });
