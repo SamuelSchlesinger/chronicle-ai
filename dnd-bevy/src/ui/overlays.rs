@@ -1182,11 +1182,9 @@ pub fn render_onboarding(
             // Navigation buttons
             ui.horizontal(|ui| {
                 // Back button (not on first page)
-                if onboarding.current_page > 0 {
-                    if ui.button("← Back").clicked() {
-                        app_state.play_click();
-                        onboarding.current_page -= 1;
-                    }
+                if onboarding.current_page > 0 && ui.button("← Back").clicked() {
+                    app_state.play_click();
+                    onboarding.current_page -= 1;
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1218,20 +1216,19 @@ pub fn render_onboarding(
                     }
 
                     // Skip link on any page
-                    if !completed {
-                        if ui
+                    if !completed
+                        && ui
                             .small_button(
                                 egui::RichText::new("Skip")
                                     .color(egui::Color32::GRAY)
                                     .small(),
                             )
                             .clicked()
-                        {
-                            app_state.play_click();
-                            onboarding.complete();
-                            app_state.overlay = ActiveOverlay::None;
-                            completed = true;
-                        }
+                    {
+                        app_state.play_click();
+                        onboarding.complete();
+                        app_state.overlay = ActiveOverlay::None;
+                        completed = true;
                     }
                 });
             });

@@ -282,21 +282,12 @@ pub enum ActiveOverlay {
 }
 
 /// Tracks whether the user has seen the onboarding modal.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct OnboardingState {
     /// Whether the user has completed onboarding.
     pub has_seen: bool,
     /// Current page of the onboarding flow (0-2).
     pub current_page: usize,
-}
-
-impl Default for OnboardingState {
-    fn default() -> Self {
-        Self {
-            has_seen: false,
-            current_page: 0,
-        }
-    }
 }
 
 impl OnboardingState {

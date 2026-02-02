@@ -140,8 +140,3 @@ fn play_sounds(
         }
     }
 }
-
-/// Helper to send a sound event.
-pub fn play_sound(writer: &mut EventWriter<SoundEffect>, effect: SoundEffect) {
-    writer.send(effect);
-}
