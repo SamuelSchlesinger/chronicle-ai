@@ -294,6 +294,11 @@ impl CharacterBuilder {
                 .or_insert(ProficiencyLevel::Proficient);
         }
 
+        // Add background tool proficiencies
+        for tool in background.tool_proficiencies() {
+            character.tool_proficiencies.insert(tool.to_string());
+        }
+
         // Set features
         character.features = class_data.level_1_features;
 

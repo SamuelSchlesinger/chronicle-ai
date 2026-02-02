@@ -12,7 +12,7 @@ use chronicle_core::dm::story_memory::ConsequenceSeverity;
 use chronicle_core::dm::{DmConfig, DungeonMaster, RelevanceChecker, StoryMemory};
 use chronicle_core::world::{
     create_sample_fighter, Ability, AbilityScores, Character, CharacterClass, GameWorld, Race,
-    SlotInfo, SpellSlots, SpellcastingData, NPC,
+    SlotInfo, SpellSlots, SpellcastingData, Subclass, NPC,
 };
 
 /// Create a sample wizard for spellcasting tests.
@@ -28,7 +28,7 @@ fn create_sample_wizard(name: &str) -> Character {
     character.classes = vec![chronicle_core::world::ClassLevel {
         class: CharacterClass::Wizard,
         level: 3,
-        subclass: Some("School of Evocation".to_string()),
+        subclass: Some(Subclass::SchoolOfEvocation),
     }];
     character.level = 3;
 
@@ -95,7 +95,7 @@ fn create_sample_cleric(name: &str) -> Character {
     character.classes = vec![chronicle_core::world::ClassLevel {
         class: CharacterClass::Cleric,
         level: 3,
-        subclass: Some("Life Domain".to_string()),
+        subclass: Some(Subclass::LifeDomain),
     }];
     character.level = 3;
 
@@ -154,7 +154,7 @@ fn create_sample_barbarian(name: &str) -> Character {
     character.classes = vec![chronicle_core::world::ClassLevel {
         class: CharacterClass::Barbarian,
         level: 3,
-        subclass: Some("Path of the Berserker".to_string()),
+        subclass: Some(Subclass::PathOfTheBerserker),
     }];
     character.level = 3;
 
@@ -260,8 +260,10 @@ async fn test_relevance_checker_with_real_api() {
     let mut story_memory = StoryMemory::new();
 
     // Add a location entity
-    let riverside_id =
-        story_memory.create_entity(chronicle_core::dm::EntityType::Location, "Riverside Village");
+    let riverside_id = story_memory.create_entity(
+        chronicle_core::dm::EntityType::Location,
+        "Riverside Village",
+    );
 
     // Add a consequence about entering the village
     let consequence = chronicle_core::dm::Consequence::new(
@@ -774,10 +776,9 @@ async fn test_dm_handles_attack_roll() {
     }
 
     // Check if damage was dealt (HP changed with negative amount)
-    let has_damage_effect = response
-        .effects
-        .iter()
-        .any(|e| matches!(e, chronicle_core::rules::Effect::HpChanged { amount, .. } if *amount < 0));
+    let has_damage_effect = response.effects.iter().any(
+        |e| matches!(e, chronicle_core::rules::Effect::HpChanged { amount, .. } if *amount < 0),
+    );
 
     if has_damage_effect {
         println!("SUCCESS: Damage effect was generated!");

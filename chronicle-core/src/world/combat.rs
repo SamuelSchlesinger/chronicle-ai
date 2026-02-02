@@ -4,6 +4,7 @@
 //! initiative tracking, combatant management, and turn order.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 use super::CharacterId;
 
@@ -27,6 +28,12 @@ pub struct CombatState {
     pub round: u32,
     pub turn_index: usize,
     pub combatants: Vec<Combatant>,
+    /// Characters who have used their Sneak Attack this turn
+    #[serde(default)]
+    pub sneak_attack_used: HashSet<CharacterId>,
+    /// Number of attacks each character has made this turn
+    #[serde(default)]
+    pub attacks_this_turn: std::collections::HashMap<CharacterId, u8>,
 }
 
 impl CombatState {
@@ -36,6 +43,8 @@ impl CombatState {
             round: 1,
             turn_index: 0,
             combatants: Vec::new(),
+            sneak_attack_used: HashSet::new(),
+            attacks_this_turn: std::collections::HashMap::new(),
         }
     }
 
@@ -55,6 +64,9 @@ impl CombatState {
             self.turn_index = 0;
             self.round += 1;
         }
+        // Reset per-turn tracking for the new combatant
+        self.sneak_attack_used.clear();
+        self.attacks_this_turn.clear();
     }
 
     pub fn end_combat(&mut self) {

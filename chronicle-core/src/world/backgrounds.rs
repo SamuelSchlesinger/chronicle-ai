@@ -83,6 +83,25 @@ impl Background {
         }
     }
 
+    /// Returns the tool proficiencies granted by this background.
+    pub fn tool_proficiencies(&self) -> Vec<&'static str> {
+        match self {
+            Background::Acolyte => vec![],
+            Background::Charlatan => vec!["Disguise kit", "Forgery kit"],
+            Background::Criminal => vec!["Thieves' tools", "Gaming set"],
+            Background::Entertainer => vec!["Disguise kit", "Musical instrument"],
+            Background::FolkHero => vec!["Artisan's tools", "Vehicles (land)"],
+            Background::GuildArtisan => vec!["Artisan's tools"],
+            Background::Hermit => vec!["Herbalism kit"],
+            Background::Noble => vec!["Gaming set"],
+            Background::Outlander => vec!["Musical instrument"],
+            Background::Sage => vec![],
+            Background::Sailor => vec!["Navigator's tools", "Vehicles (water)"],
+            Background::Soldier => vec!["Gaming set", "Vehicles (land)"],
+            Background::Urchin => vec!["Disguise kit", "Thieves' tools"],
+        }
+    }
+
     pub fn all() -> &'static [Background] {
         &[
             Background::Acolyte,

@@ -116,7 +116,7 @@ mod tests {
     use crate::world::Ability;
     use crate::world::{
         AbilityScores, ArmorClass, ArmorType, ClassLevel, Feature, FeatureUses, HitPoints,
-        ProficiencyLevel, Skill,
+        ProficiencyLevel, Skill, Subclass,
     };
 
     fn create_test_fighter() -> Character {
@@ -130,7 +130,7 @@ mod tests {
         character.classes.push(ClassLevel {
             class: CharacterClass::Fighter,
             level: 3,
-            subclass: Some("Champion".to_string()),
+            subclass: Some(Subclass::Champion),
         });
 
         character

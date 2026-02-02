@@ -1,6 +1,6 @@
 //! Parsing for combat-related tools.
 
-use super::super::converters::{parse_condition, parse_damage_type};
+use super::super::converters::{parse_advantage, parse_condition, parse_damage_type};
 use crate::rules::{CombatantInit, Intent};
 use crate::world::{CharacterId, GameWorld};
 use serde_json::Value;
@@ -100,6 +100,32 @@ pub fn parse_combat_tool(name: &str, input: &Value, world: &GameWorld) -> Option
                 character_id: world.player_character.id,
                 damage_taken,
                 spell_name,
+            })
+        }
+        "attack" => {
+            let weapon_name = input["weapon"].as_str()?.to_string();
+            let target_name = input["target"].as_str()?;
+            let advantage = parse_advantage(input["advantage"].as_str());
+
+            // Find the target in combat state by name
+            let target_id = if let Some(ref combat) = world.combat {
+                combat
+                    .combatants
+                    .iter()
+                    .find(|c| c.name.eq_ignore_ascii_case(target_name))
+                    .map(|c| c.id)
+            } else {
+                None
+            };
+
+            // If no combat or target not found, we can't attack
+            let target_id = target_id?;
+
+            Some(Intent::Attack {
+                attacker_id: world.player_character.id,
+                target_id,
+                weapon_name,
+                advantage,
             })
         }
         _ => None,

@@ -9,7 +9,7 @@
 use super::{
     mechanics, Ability, ArmorType, Character, CharacterClass, CharacterId, ClassLevel, CombatState,
     Feature, FeatureUses, GameTime, HitPoints, Location, LocationId, LocationType,
-    ProficiencyLevel, Quest, RechargeType, Skill, NPC,
+    ProficiencyLevel, Quest, RechargeType, Skill, Subclass, NPC,
 };
 use crate::dice::DieType;
 use serde::{Deserialize, Serialize};
@@ -166,7 +166,7 @@ pub fn create_sample_fighter(name: &str) -> Character {
     character.classes.push(ClassLevel {
         class: CharacterClass::Fighter,
         level: 3,
-        subclass: Some("Champion".to_string()),
+        subclass: Some(Subclass::Champion),
     });
 
     character

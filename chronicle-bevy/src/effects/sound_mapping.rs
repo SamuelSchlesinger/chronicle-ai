@@ -76,6 +76,7 @@ pub fn sound_for_effect(effect: &Effect) -> Option<SoundEffect> {
         | Effect::QuestObjectiveCompleted { .. }
         | Effect::QuestCompleted { .. }
         | Effect::QuestFailed { .. }
-        | Effect::QuestUpdated { .. } => None,
+        | Effect::QuestUpdated { .. }
+        | Effect::SneakAttackUsed { .. } => None,
     }
 }

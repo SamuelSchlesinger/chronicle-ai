@@ -45,6 +45,7 @@ mod quests;
 mod races;
 mod skills;
 mod spellcasting;
+mod subclasses;
 mod time;
 
 // ============================================================================
@@ -110,6 +111,9 @@ pub use defense::{ArmorClass, ArmorType, Speed};
 
 // Classes
 pub use classes::{CharacterClass, ClassLevel, ClassResources, Feature, FeatureUses, RechargeType};
+
+// Subclasses
+pub use subclasses::{Subclass, SubclassFeature};
 
 // Spellcasting
 pub use spellcasting::{SlotInfo, SpellSlots, SpellcastingData};

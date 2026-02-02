@@ -25,7 +25,8 @@ When players attempt actions related to their class abilities, RECOGNIZE the int
 ### Fighter
 - Player wants extra action → **Action Surge** (1/short rest)
 - Player gets second wind → **Second Wind** (1d10 + level HP, 1/short rest)
-- Multiple attacks → **Extra Attack** at level 5+
+- Multiple attacks → **Extra Attack** at level 5+ (2 attacks, 3 at 11, 4 at 20)
+- Use the `attack` tool multiple times per Attack action based on Extra Attack
 
 ### Monk
 - Patient Defense, Flurry of Blows, Step of the Wind → Track **Ki Points**
@@ -43,7 +44,10 @@ When players attempt actions related to their class abilities, RECOGNIZE the int
 - Player hides → **Hide in Plain Sight** at higher levels
 
 ### Rogue
-- Player attacks with advantage or ally nearby → **Sneak Attack** damage
+- **Sneak Attack** is AUTOMATIC when using the `attack` tool with:
+  - A finesse or ranged weapon, AND
+  - Advantage OR an ally adjacent to the target
+  - Once per turn (tracked automatically)
 - Player avoids trap/spell → **Evasion** (half or no damage on DEX saves)
 - Player uses bonus action → **Cunning Action** (Dash, Disengage, Hide)
 
@@ -64,6 +68,7 @@ When players attempt actions related to their class abilities, RECOGNIZE the int
 - Player wants to copy spell → Offer to add to **Spellbook**
 
 ### General Reminders
+- Use the `attack` tool for weapon attacks - it handles hit/miss, damage, crits, rage bonus, and Sneak Attack automatically
 - Track **spell slots** when spells are cast
 - Track **limited-use features** (Action Surge, Wild Shape, etc.)
 - Mention when features **recharge** on short/long rest

@@ -45,6 +45,13 @@ fn roll_with_fallback(notation: &str, fallback: &str) -> RollResult {
         })
 }
 
+/// Calculate the number of d6s for Sneak Attack based on Rogue level.
+/// Sneak Attack scales: 1d6 at level 1, +1d6 every odd level.
+fn sneak_attack_dice(rogue_level: u8) -> u8 {
+    // 1d6 at 1, 2d6 at 3, 3d6 at 5, etc.
+    rogue_level.div_ceil(2)
+}
+
 /// An intent represents what a character wants to do.
 /// The AI generates intents, the RulesEngine resolves them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -457,6 +464,12 @@ impl Resolution {
 pub enum Effect {
     /// A dice roll occurred
     DiceRolled { roll: RollResult, purpose: String },
+
+    /// Sneak Attack was used (for tracking once-per-turn usage)
+    SneakAttackUsed {
+        character_id: CharacterId,
+        damage_dice: u8,
+    },
 
     /// HP changed (damage or healing)
     HpChanged {
@@ -1006,7 +1019,13 @@ impl RulesEngine {
                 giver,
                 objectives,
                 rewards,
-            } => self.resolve_create_quest(&name, &description, giver.as_deref(), &objectives, &rewards),
+            } => self.resolve_create_quest(
+                &name,
+                &description,
+                giver.as_deref(),
+                &objectives,
+                &rewards,
+            ),
             Intent::AddQuestObjective {
                 quest_name,
                 objective,
@@ -1161,6 +1180,56 @@ impl RulesEngine {
                 roll: damage_roll.clone(),
                 purpose: "Damage".to_string(),
             });
+
+            // Check for Sneak Attack (Rogue feature)
+            let rogue_level = attacker
+                .classes
+                .iter()
+                .find(|c| c.class == CharacterClass::Rogue)
+                .map(|c| c.level)
+                .unwrap_or(0);
+
+            if rogue_level > 0 && (is_finesse || is_ranged) {
+                // Check if sneak attack conditions are met:
+                // 1. Has advantage, OR
+                // 2. An ally is engaged with the target (in melee range)
+                let has_advantage = matches!(advantage, Advantage::Advantage);
+
+                // Check for ally adjacent to target (any non-player ally in combat)
+                let has_ally_adjacent = if let Some(ref combat) = world.combat {
+                    combat
+                        .combatants
+                        .iter()
+                        .any(|c| c.is_ally && !c.is_player && c.current_hp > 0 && c.id != target_id)
+                } else {
+                    false
+                };
+
+                // Check if sneak attack hasn't been used this turn
+                let sneak_attack_available = if let Some(ref combat) = world.combat {
+                    !combat.sneak_attack_used.contains(&attacker.id)
+                } else {
+                    true // Outside combat, allow it
+                };
+
+                if sneak_attack_available && (has_advantage || has_ally_adjacent) {
+                    let sneak_dice = sneak_attack_dice(rogue_level);
+                    let sneak_expr = if attack_roll.is_critical() {
+                        format!("{}d6", sneak_dice * 2) // Double dice on crit
+                    } else {
+                        format!("{}d6", sneak_dice)
+                    };
+                    let sneak_roll = roll_with_fallback(&sneak_expr, "1d6");
+                    resolution = resolution.with_effect(Effect::DiceRolled {
+                        roll: sneak_roll.clone(),
+                        purpose: "Sneak Attack".to_string(),
+                    });
+                    resolution = resolution.with_effect(Effect::SneakAttackUsed {
+                        character_id: attacker.id,
+                        damage_dice: sneak_dice,
+                    });
+                }
+            }
         } else {
             resolution = resolution.with_effect(Effect::AttackMissed {
                 attacker_name: attacker.name.clone(),
@@ -3330,7 +3399,11 @@ impl RulesEngine {
         })
     }
 
-    fn resolve_complete_quest(&self, quest_name: &str, completion_note: Option<&str>) -> Resolution {
+    fn resolve_complete_quest(
+        &self,
+        quest_name: &str,
+        completion_note: Option<&str>,
+    ) -> Resolution {
         Resolution::new(format!(
             "Quest Completed: \"{}\"{}",
             quest_name,
@@ -3660,6 +3733,12 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
         Effect::AttackHit { .. } => {}
         Effect::AttackMissed { .. } => {}
         Effect::InitiativeRolled { .. } => {}
+        Effect::SneakAttackUsed { character_id, .. } => {
+            // Mark that this character has used their sneak attack this turn
+            if let Some(ref mut combat) = world.combat {
+                combat.sneak_attack_used.insert(*character_id);
+            }
+        }
         // FactRemembered is handled by the DM agent's memory system, not world state
         Effect::FactRemembered { .. } => {}
 

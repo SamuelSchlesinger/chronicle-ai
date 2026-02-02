@@ -57,6 +57,7 @@ pub struct Character {
     // Skills & proficiencies
     pub skill_proficiencies: HashMap<Skill, ProficiencyLevel>,
     pub saving_throw_proficiencies: HashSet<Ability>,
+    pub tool_proficiencies: HashSet<String>,
     pub languages: Vec<String>,
 
     // Equipment
@@ -94,6 +95,7 @@ impl Character {
             spellcasting: None,
             skill_proficiencies: HashMap::new(),
             saving_throw_proficiencies: HashSet::new(),
+            tool_proficiencies: HashSet::new(),
             languages: vec!["Common".to_string()],
             inventory: Inventory {
                 items: Vec::new(),

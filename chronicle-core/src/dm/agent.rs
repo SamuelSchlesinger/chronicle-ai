@@ -687,7 +687,13 @@ impl DungeonMaster {
             let class_info: Vec<_> = pc
                 .classes
                 .iter()
-                .map(|c| format!("{} {}", c.class.name(), c.level))
+                .map(|c| {
+                    if let Some(subclass) = &c.subclass {
+                        format!("{} {} ({})", c.class.name(), c.level, subclass.name())
+                    } else {
+                        format!("{} {}", c.class.name(), c.level)
+                    }
+                })
                 .collect();
             prompt.push_str(&format!(" ({})", class_info.join("/")));
         }
@@ -759,6 +765,35 @@ impl DungeonMaster {
             pc.ability_scores.wisdom,
             pc.ability_scores.charisma
         ));
+
+        // Add tool proficiencies if any
+        if !pc.tool_proficiencies.is_empty() {
+            let tools: Vec<_> = pc.tool_proficiencies.iter().cloned().collect();
+            prompt.push_str(&format!("**Tool Proficiencies:** {}\n", tools.join(", ")));
+        }
+
+        // Add combat features (Extra Attack, Sneak Attack)
+        if !pc.classes.is_empty() {
+            let primary_class = &pc.classes[0];
+
+            // Extra Attack
+            let attacks = primary_class.class.attacks_per_action(primary_class.level);
+            if attacks > 1 {
+                prompt.push_str(&format!(
+                    "**Extra Attack:** {} attacks per Attack action\n",
+                    attacks
+                ));
+            }
+
+            // Sneak Attack (Rogues)
+            if primary_class.class == crate::world::CharacterClass::Rogue {
+                let sneak_dice = primary_class.level.div_ceil(2);
+                prompt.push_str(&format!(
+                    "**Sneak Attack:** {}d6 (auto-applied by attack tool when conditions met: finesse/ranged weapon + advantage or ally adjacent)\n",
+                    sneak_dice
+                ));
+            }
+        }
 
         // Add current situation
         prompt.push_str("\n## Current Situation\n");

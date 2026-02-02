@@ -78,6 +78,33 @@ impl CharacterClass {
         // Note: Paladin and Ranger get spellcasting at level 2, not level 1
     }
 
+    /// Returns the number of attacks per Attack action at the given level.
+    /// Most martial classes get Extra Attack at level 5.
+    /// Fighters get additional attacks at levels 11 and 20.
+    pub fn attacks_per_action(&self, level: u8) -> u8 {
+        match self {
+            CharacterClass::Fighter => match level {
+                1..=4 => 1,
+                5..=10 => 2,
+                11..=19 => 3,
+                20.. => 4,
+                _ => 1,
+            },
+            CharacterClass::Barbarian
+            | CharacterClass::Monk
+            | CharacterClass::Paladin
+            | CharacterClass::Ranger => {
+                if level >= 5 {
+                    2
+                } else {
+                    1
+                }
+            }
+            // Casters and Rogues don't get Extra Attack (Rogues get Sneak Attack instead)
+            _ => 1,
+        }
+    }
+
     /// Returns the spellcasting ability for this class, if any.
     pub fn spellcasting_ability(&self) -> Option<Ability> {
         match self {
@@ -437,7 +464,8 @@ impl fmt::Display for CharacterClass {
 pub struct ClassLevel {
     pub class: CharacterClass,
     pub level: u8,
-    pub subclass: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subclass: Option<super::subclasses::Subclass>,
 }
 
 /// Class feature/ability.

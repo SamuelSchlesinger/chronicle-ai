@@ -39,6 +39,7 @@ impl DmTools {
             checks::ability_check(),
             checks::saving_throw(),
             // Combat
+            combat::attack(),
             combat::apply_damage(),
             combat::apply_healing(),
             combat::apply_condition(),
@@ -193,6 +194,7 @@ mod tests {
         }
 
         let combat_tools = [
+            "attack",
             "apply_damage",
             "apply_healing",
             "start_combat",

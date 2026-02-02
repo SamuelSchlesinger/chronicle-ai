@@ -210,3 +210,30 @@ pub fn concentration_check() -> Tool {
         }),
     }
 }
+
+/// Make a weapon attack against a target.
+pub fn attack() -> Tool {
+    Tool {
+        name: "attack".to_string(),
+        description: "Make a weapon attack against a target. Rolls attack vs AC, determines hit/miss/crit, and rolls damage. Automatically applies relevant bonuses (proficiency, ability modifier, rage damage) and class features (Sneak Attack for Rogues with advantage or ally adjacent, Improved Critical for Champion Fighters).".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "weapon": {
+                    "type": "string",
+                    "description": "Name of the weapon to attack with (e.g., 'longsword', 'shortbow', 'dagger'). Use 'unarmed' for unarmed strikes."
+                },
+                "target": {
+                    "type": "string",
+                    "description": "Name of the target (must be a combatant in the current combat)"
+                },
+                "advantage": {
+                    "type": "string",
+                    "enum": ["normal", "advantage", "disadvantage"],
+                    "description": "Advantage state for the attack roll. Use 'advantage' when attacker has advantage (e.g., target is prone, attacker is hidden, ally used Help). Use 'disadvantage' when attacker has disadvantage (e.g., target is obscured, attacker is restrained)."
+                }
+            },
+            "required": ["weapon", "target"]
+        }),
+    }
+}

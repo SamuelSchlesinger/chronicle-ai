@@ -499,5 +499,11 @@ pub fn narrative_for_effect(effect: &Effect) -> Option<NarrativeOutput> {
             narrative_type: NarrativeType::System,
             status: None,
         }),
+
+        Effect::SneakAttackUsed { damage_dice, .. } => Some(NarrativeOutput {
+            text: format!("SNEAK ATTACK! ({damage_dice}d6 extra damage)"),
+            narrative_type: NarrativeType::Combat,
+            status: None,
+        }),
     }
 }
