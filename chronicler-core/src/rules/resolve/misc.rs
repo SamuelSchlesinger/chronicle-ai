@@ -186,3 +186,291 @@ impl RulesEngine {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::types::Effect;
+    use crate::world::{create_sample_fighter, Feature, FeatureUses, GameWorld, RechargeType};
+
+    // ========== Gain Experience Tests ==========
+
+    #[test]
+    fn test_gain_experience_no_level_up() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_gain_experience(&world, 100);
+
+        assert!(resolution.narrative.contains("Gained 100"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ExperienceGained { amount: 100, .. })));
+        // Should not level up (need 300 XP for level 2)
+        assert!(!resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::LevelUp { .. })));
+    }
+
+    #[test]
+    fn test_gain_experience_level_up() {
+        let mut character = create_sample_fighter("Roland");
+        // Set fighter to level 1 with 0 XP for this test
+        character.level = 1;
+        character.experience = 0;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // 300 XP is the threshold for level 2
+        let resolution = engine.resolve_gain_experience(&world, 300);
+
+        assert!(resolution.narrative.contains("Gained 300"));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::ExperienceGained {
+                amount: 300,
+                new_total: 300
+            }
+        )));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::LevelUp { new_level: 2 })));
+    }
+
+    #[test]
+    fn test_gain_experience_multiple_levels() {
+        let mut character = create_sample_fighter("Roland");
+        // Set fighter to level 1 with 0 XP for this test
+        character.level = 1;
+        character.experience = 0;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // 2700 XP should reach level 4
+        let resolution = engine.resolve_gain_experience(&world, 2700);
+
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::LevelUp { new_level: 4 })));
+    }
+
+    // ========== Use Feature Tests ==========
+
+    #[test]
+    fn test_use_feature_with_uses() {
+        let mut character = create_sample_fighter("Roland");
+        character.features.push(Feature {
+            name: "Second Wind".to_string(),
+            description: "Regain HP".to_string(),
+            source: "Fighter".to_string(),
+            uses: Some(FeatureUses {
+                current: 1,
+                maximum: 1,
+                recharge: RechargeType::ShortRest,
+            }),
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_feature(&world, world.player_character.id, "Second Wind");
+
+        assert!(resolution.narrative.contains("uses Second Wind"));
+        assert!(resolution.narrative.contains("0 uses remaining"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::FeatureUsed { feature_name, uses_remaining: 0 } if feature_name == "Second Wind")));
+    }
+
+    #[test]
+    fn test_use_feature_no_uses_remaining() {
+        let mut character = create_sample_fighter("Roland");
+        // Use a unique feature name to avoid collision with sample fighter's Second Wind
+        character.features.push(Feature {
+            name: "Test Feature".to_string(),
+            description: "A test feature".to_string(),
+            source: "Test".to_string(),
+            uses: Some(FeatureUses {
+                current: 0,
+                maximum: 1,
+                recharge: RechargeType::ShortRest,
+            }),
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_feature(&world, world.player_character.id, "Test Feature");
+
+        // Narrative says "has no uses of X remaining"
+        assert!(resolution.narrative.contains("no uses of"));
+        assert!(resolution.narrative.contains("remaining"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_feature_unlimited_uses() {
+        let mut character = create_sample_fighter("Roland");
+        character.features.push(Feature {
+            name: "Fighting Style".to_string(),
+            description: "Defense".to_string(),
+            source: "Fighter".to_string(),
+            uses: None, // No limited uses
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_feature(&world, world.player_character.id, "Fighting Style");
+
+        assert!(resolution.narrative.contains("uses Fighting Style"));
+        // No effect since it's unlimited
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_feature_not_found() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_feature(&world, world.player_character.id, "Nonexistent Feature");
+
+        assert!(resolution.narrative.contains("does not have"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Remember Fact Tests ==========
+
+    #[test]
+    fn test_remember_fact_basic() {
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_remember_fact(
+            "Goblin Chief",
+            "NPC",
+            "Is afraid of fire",
+            "weakness",
+            &[],
+            0.8,
+        );
+
+        assert!(resolution.narrative.contains("Goblin Chief"));
+        assert!(resolution.narrative.contains("afraid of fire"));
+        assert!(resolution.effects.iter().any(
+            |e| matches!(e, Effect::FactRemembered { subject_name, fact, .. }
+                if subject_name == "Goblin Chief" && fact == "Is afraid of fire")
+        ));
+    }
+
+    #[test]
+    fn test_remember_fact_with_related_entities() {
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_remember_fact(
+            "Dark Tower",
+            "Location",
+            "Contains the artifact",
+            "lore",
+            &["Artifact".to_string(), "Evil Wizard".to_string()],
+            0.9,
+        );
+
+        assert!(resolution.narrative.contains("related:"));
+        assert!(resolution.narrative.contains("Artifact"));
+        assert!(resolution.narrative.contains("Evil Wizard"));
+    }
+
+    // ========== Change Location Tests ==========
+
+    #[test]
+    fn test_change_location() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_change_location(&world, "Dark Forest", Some("forest".to_string()), None);
+
+        assert!(resolution.narrative.contains("travel from"));
+        assert!(resolution.narrative.contains("Dark Forest"));
+        assert!(resolution.effects.iter().any(
+            |e| matches!(e, Effect::LocationChanged { new_location, .. } if new_location == "Dark Forest")
+        ));
+    }
+
+    // ========== Register Consequence Tests ==========
+
+    #[test]
+    fn test_register_consequence_basic() {
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_register_consequence(
+            "player enters the throne room",
+            "guards attack",
+            "major",
+            &[],
+            0.9,
+            None,
+        );
+
+        assert!(resolution.narrative.contains("player enters"));
+        assert!(resolution.narrative.contains("guards attack"));
+        assert!(resolution.narrative.contains("major severity"));
+        assert!(resolution.effects.iter().any(
+            |e| matches!(e, Effect::ConsequenceRegistered { severity, .. } if severity == "major")
+        ));
+    }
+
+    #[test]
+    fn test_register_consequence_with_expiry() {
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_register_consequence(
+            "alarm triggered",
+            "reinforcements arrive",
+            "moderate",
+            &[],
+            0.7,
+            Some(5),
+        );
+
+        assert!(resolution.narrative.contains("expires in 5 turns"));
+    }
+
+    // ========== Modify Ability Score Tests ==========
+
+    #[test]
+    fn test_modify_ability_score_positive() {
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_modify_ability_score(Ability::Strength, 2, "Bull's Strength", None);
+
+        assert!(resolution.narrative.contains("Strength"));
+        assert!(resolution.narrative.contains("+2"));
+        assert!(resolution.narrative.contains("permanently"));
+        assert!(resolution.effects.iter().any(
+            |e| matches!(e, Effect::AbilityScoreModified { ability, modifier: 2, .. } if *ability == Ability::Strength)
+        ));
+    }
+
+    #[test]
+    fn test_modify_ability_score_negative() {
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_modify_ability_score(Ability::Dexterity, -2, "Curse", Some("1 hour"));
+
+        assert!(resolution.narrative.contains("Dexterity"));
+        assert!(resolution.narrative.contains("-2"));
+        assert!(resolution.narrative.contains("for 1 hour"));
+    }
+}
