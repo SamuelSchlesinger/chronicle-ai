@@ -9,7 +9,8 @@
 use super::{
     mechanics, Ability, ArmorType, Character, CharacterClass, CharacterId, ClassLevel, CombatState,
     Feature, FeatureUses, GameTime, HitPoints, Location, LocationId, LocationType,
-    ProficiencyLevel, Quest, RechargeType, Skill, Subclass, NPC,
+    ProficiencyLevel, Quest, RechargeType, Skill, SlotInfo, SpellSlots, SpellcastingData, Subclass,
+    NPC,
 };
 use crate::dice::DieType;
 use serde::{Deserialize, Serialize};
@@ -212,6 +213,544 @@ pub fn create_sample_fighter(name: &str) -> Character {
             maximum: 1,
             recharge: RechargeType::ShortRest,
         }),
+    });
+
+    character
+}
+
+/// Create a sample barbarian character for testing.
+pub fn create_sample_barbarian(name: &str) -> Character {
+    use super::{AbilityScores, ArmorClass};
+
+    let mut character = Character::new(name);
+
+    character.ability_scores = AbilityScores::new(16, 14, 16, 8, 12, 10);
+    character.level = 3;
+    character.hit_points = HitPoints::new(35); // d12 + 3 CON per level
+    character.hit_dice.add(DieType::D12, 3);
+
+    character.classes.push(ClassLevel {
+        class: CharacterClass::Barbarian,
+        level: 3,
+        subclass: Some(Subclass::PathOfTheBerserker),
+    });
+
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Strength);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Constitution);
+
+    character
+        .skill_proficiencies
+        .insert(Skill::Athletics, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Intimidation, ProficiencyLevel::Proficient);
+
+    // Unarmored Defense: 10 + DEX + CON = 10 + 2 + 3 = 15
+    character.armor_class = ArmorClass {
+        base: 10,
+        armor_type: None,
+        shield_bonus: 0,
+    };
+
+    // Initialize class resources
+    character.class_resources.rage_active = false;
+    character.class_resources.rage_damage_bonus = 2;
+
+    // Add Rage feature with uses
+    character.features.push(Feature {
+        name: "Rage".to_string(),
+        description: "Enter a battle fury for 1 minute".to_string(),
+        source: "Barbarian".to_string(),
+        uses: Some(FeatureUses {
+            current: 3,
+            maximum: 3,
+            recharge: RechargeType::LongRest,
+        }),
+    });
+
+    character.features.push(Feature {
+        name: "Reckless Attack".to_string(),
+        description: "Advantage on attacks this turn, attacks against you have advantage"
+            .to_string(),
+        source: "Barbarian".to_string(),
+        uses: None,
+    });
+
+    character
+}
+
+/// Create a sample monk character for testing.
+pub fn create_sample_monk(name: &str) -> Character {
+    use super::{AbilityScores, ArmorClass};
+
+    let mut character = Character::new(name);
+
+    character.ability_scores = AbilityScores::new(10, 16, 14, 10, 16, 8);
+    character.level = 3;
+    character.hit_points = HitPoints::new(24); // d8 + 2 CON per level
+    character.hit_dice.add(DieType::D8, 3);
+
+    character.classes.push(ClassLevel {
+        class: CharacterClass::Monk,
+        level: 3,
+        subclass: Some(Subclass::WayOfTheOpenHand),
+    });
+
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Strength);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Dexterity);
+
+    character
+        .skill_proficiencies
+        .insert(Skill::Acrobatics, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Stealth, ProficiencyLevel::Proficient);
+
+    // Unarmored Defense: 10 + DEX + WIS = 10 + 3 + 3 = 16
+    character.armor_class = ArmorClass {
+        base: 16,
+        armor_type: None,
+        shield_bonus: 0,
+    };
+
+    // Initialize ki points (level 2+)
+    character.class_resources.ki_points = 3;
+    character.class_resources.max_ki_points = 3;
+
+    character.features.push(Feature {
+        name: "Martial Arts".to_string(),
+        description: "Use DEX for unarmed strikes, bonus action unarmed strike".to_string(),
+        source: "Monk".to_string(),
+        uses: None,
+    });
+
+    character.features.push(Feature {
+        name: "Ki".to_string(),
+        description: "Channel ki for special abilities".to_string(),
+        source: "Monk".to_string(),
+        uses: None, // Tracked via class_resources
+    });
+
+    character
+}
+
+/// Create a sample paladin character for testing.
+pub fn create_sample_paladin(name: &str) -> Character {
+    use super::{AbilityScores, ArmorClass};
+
+    let mut character = Character::new(name);
+
+    character.ability_scores = AbilityScores::new(16, 10, 14, 8, 12, 16);
+    character.level = 3;
+    character.hit_points = HitPoints::new(28); // d10 + 2 CON per level
+    character.hit_dice.add(DieType::D10, 3);
+
+    character.classes.push(ClassLevel {
+        class: CharacterClass::Paladin,
+        level: 3,
+        subclass: Some(Subclass::OathOfDevotion),
+    });
+
+    character.saving_throw_proficiencies.insert(Ability::Wisdom);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Charisma);
+
+    character
+        .skill_proficiencies
+        .insert(Skill::Athletics, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Religion, ProficiencyLevel::Proficient);
+
+    character.armor_class = ArmorClass {
+        base: 16, // Chain mail
+        armor_type: Some(ArmorType::Heavy),
+        shield_bonus: 2,
+    };
+
+    // Lay on Hands pool = 5 × Paladin level
+    character.class_resources.lay_on_hands_pool = 15;
+    character.class_resources.lay_on_hands_max = 15;
+    character.class_resources.channel_divinity_used = false;
+
+    // Set up spellcasting (Paladins get spells at level 2)
+    character.spellcasting = Some(SpellcastingData {
+        ability: Ability::Charisma,
+        spells_known: vec![],
+        spells_prepared: vec!["Cure Wounds".to_string(), "Shield of Faith".to_string()],
+        cantrips_known: vec![],
+        spell_slots: {
+            let mut slots = SpellSlots::new();
+            slots.slots[0] = SlotInfo { total: 3, used: 0 }; // 3 first-level slots at level 3
+            slots
+        },
+    });
+
+    character.features.push(Feature {
+        name: "Divine Sense".to_string(),
+        description: "Detect celestials, fiends, and undead within 60 feet".to_string(),
+        source: "Paladin".to_string(),
+        uses: Some(FeatureUses {
+            current: 4, // 1 + CHA mod
+            maximum: 4,
+            recharge: RechargeType::LongRest,
+        }),
+    });
+
+    character.features.push(Feature {
+        name: "Lay on Hands".to_string(),
+        description: "Heal HP or cure diseases/poisons from a pool".to_string(),
+        source: "Paladin".to_string(),
+        uses: None, // Tracked via class_resources.lay_on_hands_pool
+    });
+
+    character.features.push(Feature {
+        name: "Channel Divinity".to_string(),
+        description: "Sacred Weapon or Turn the Unholy".to_string(),
+        source: "Paladin".to_string(),
+        uses: Some(FeatureUses {
+            current: 1,
+            maximum: 1,
+            recharge: RechargeType::ShortRest,
+        }),
+    });
+
+    character
+}
+
+/// Create a sample druid character for testing.
+pub fn create_sample_druid(name: &str) -> Character {
+    use super::{AbilityScores, ArmorClass};
+
+    let mut character = Character::new(name);
+
+    character.ability_scores = AbilityScores::new(10, 14, 14, 12, 16, 10);
+    character.level = 3;
+    character.hit_points = HitPoints::new(24); // d8 + 2 CON per level
+    character.hit_dice.add(DieType::D8, 3);
+
+    character.classes.push(ClassLevel {
+        class: CharacterClass::Druid,
+        level: 3,
+        subclass: Some(Subclass::CircleOfTheLand),
+    });
+
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Intelligence);
+    character.saving_throw_proficiencies.insert(Ability::Wisdom);
+
+    character
+        .skill_proficiencies
+        .insert(Skill::Nature, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Perception, ProficiencyLevel::Proficient);
+
+    // Leather armor + DEX
+    character.armor_class = ArmorClass {
+        base: 11,
+        armor_type: Some(ArmorType::Light),
+        shield_bonus: 2, // Wooden shield
+    };
+
+    // Wild Shape tracking
+    character.class_resources.wild_shape_form = None;
+    character.class_resources.wild_shape_hp = None;
+
+    // Set up spellcasting
+    character.spellcasting = Some(SpellcastingData {
+        ability: Ability::Wisdom,
+        spells_known: vec![],
+        spells_prepared: vec![
+            "Cure Wounds".to_string(),
+            "Entangle".to_string(),
+            "Moonbeam".to_string(),
+        ],
+        cantrips_known: vec!["Druidcraft".to_string(), "Produce Flame".to_string()],
+        spell_slots: {
+            let mut slots = SpellSlots::new();
+            slots.slots[0] = SlotInfo { total: 4, used: 0 }; // 4 first-level slots
+            slots.slots[1] = SlotInfo { total: 2, used: 0 }; // 2 second-level slots
+            slots
+        },
+    });
+
+    character.features.push(Feature {
+        name: "Wild Shape".to_string(),
+        description: "Transform into a beast you have seen".to_string(),
+        source: "Druid".to_string(),
+        uses: Some(FeatureUses {
+            current: 2,
+            maximum: 2,
+            recharge: RechargeType::ShortRest,
+        }),
+    });
+
+    character
+}
+
+/// Create a sample cleric character for testing.
+pub fn create_sample_cleric(name: &str) -> Character {
+    use super::{AbilityScores, ArmorClass};
+
+    let mut character = Character::new(name);
+
+    character.ability_scores = AbilityScores::new(14, 10, 14, 10, 16, 12);
+    character.level = 3;
+    character.hit_points = HitPoints::new(24); // d8 + 2 CON per level
+    character.hit_dice.add(DieType::D8, 3);
+
+    character.classes.push(ClassLevel {
+        class: CharacterClass::Cleric,
+        level: 3,
+        subclass: Some(Subclass::LifeDomain),
+    });
+
+    character.saving_throw_proficiencies.insert(Ability::Wisdom);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Charisma);
+
+    character
+        .skill_proficiencies
+        .insert(Skill::Medicine, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Religion, ProficiencyLevel::Proficient);
+
+    // Chain mail (Life Domain grants heavy armor)
+    character.armor_class = ArmorClass {
+        base: 16,
+        armor_type: Some(ArmorType::Heavy),
+        shield_bonus: 2,
+    };
+
+    // Channel Divinity tracking
+    character.class_resources.channel_divinity_used = false;
+
+    // Set up spellcasting
+    character.spellcasting = Some(SpellcastingData {
+        ability: Ability::Wisdom,
+        spells_known: vec![],
+        spells_prepared: vec![
+            "Cure Wounds".to_string(),
+            "Bless".to_string(),
+            "Guiding Bolt".to_string(),
+        ],
+        cantrips_known: vec![
+            "Sacred Flame".to_string(),
+            "Light".to_string(),
+            "Guidance".to_string(),
+        ],
+        spell_slots: {
+            let mut slots = SpellSlots::new();
+            slots.slots[0] = SlotInfo { total: 4, used: 0 };
+            slots.slots[1] = SlotInfo { total: 2, used: 0 };
+            slots
+        },
+    });
+
+    character.features.push(Feature {
+        name: "Channel Divinity".to_string(),
+        description: "Turn Undead or Preserve Life".to_string(),
+        source: "Cleric".to_string(),
+        uses: Some(FeatureUses {
+            current: 1,
+            maximum: 1,
+            recharge: RechargeType::ShortRest,
+        }),
+    });
+
+    character.features.push(Feature {
+        name: "Disciple of Life".to_string(),
+        description: "Healing spells restore additional HP equal to 2 + spell level".to_string(),
+        source: "Life Domain".to_string(),
+        uses: None,
+    });
+
+    character
+}
+
+/// Create a sample bard character for testing.
+pub fn create_sample_bard(name: &str) -> Character {
+    use super::{AbilityScores, ArmorClass};
+
+    let mut character = Character::new(name);
+
+    character.ability_scores = AbilityScores::new(10, 14, 12, 12, 10, 16);
+    character.level = 3;
+    character.hit_points = HitPoints::new(21); // d8 + 1 CON per level
+    character.hit_dice.add(DieType::D8, 3);
+
+    character.classes.push(ClassLevel {
+        class: CharacterClass::Bard,
+        level: 3,
+        subclass: Some(Subclass::CollegeOfLore),
+    });
+
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Dexterity);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Charisma);
+
+    character
+        .skill_proficiencies
+        .insert(Skill::Performance, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Persuasion, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Deception, ProficiencyLevel::Proficient);
+
+    // Leather armor + DEX
+    character.armor_class = ArmorClass {
+        base: 11,
+        armor_type: Some(ArmorType::Light),
+        shield_bonus: 0,
+    };
+
+    // Bardic Inspiration uses = CHA modifier (minimum 1)
+    character.class_resources.bardic_inspiration_uses = 3;
+    character.class_resources.max_bardic_inspiration = 3;
+
+    // Set up spellcasting
+    character.spellcasting = Some(SpellcastingData {
+        ability: Ability::Charisma,
+        spells_known: vec![
+            "Healing Word".to_string(),
+            "Faerie Fire".to_string(),
+            "Dissonant Whispers".to_string(),
+            "Hideous Laughter".to_string(),
+        ],
+        spells_prepared: vec![],
+        cantrips_known: vec!["Vicious Mockery".to_string(), "Minor Illusion".to_string()],
+        spell_slots: {
+            let mut slots = SpellSlots::new();
+            slots.slots[0] = SlotInfo { total: 4, used: 0 };
+            slots.slots[1] = SlotInfo { total: 2, used: 0 };
+            slots
+        },
+    });
+
+    character.features.push(Feature {
+        name: "Bardic Inspiration".to_string(),
+        description: "Grant allies a d6 inspiration die".to_string(),
+        source: "Bard".to_string(),
+        uses: Some(FeatureUses {
+            current: 3,
+            maximum: 3,
+            recharge: RechargeType::LongRest,
+        }),
+    });
+
+    character.features.push(Feature {
+        name: "Cutting Words".to_string(),
+        description: "Use Bardic Inspiration to reduce enemy rolls".to_string(),
+        source: "College of Lore".to_string(),
+        uses: None, // Uses Bardic Inspiration
+    });
+
+    character
+}
+
+/// Create a sample sorcerer character for testing.
+pub fn create_sample_sorcerer(name: &str) -> Character {
+    use super::{AbilityScores, ArmorClass};
+
+    let mut character = Character::new(name);
+
+    character.ability_scores = AbilityScores::new(8, 14, 14, 10, 10, 16);
+    character.level = 3;
+    character.hit_points = HitPoints::new(20); // d6 + 2 CON per level (Draconic Resilience: +1 HP/level)
+    character.hit_dice.add(DieType::D6, 3);
+
+    character.classes.push(ClassLevel {
+        class: CharacterClass::Sorcerer,
+        level: 3,
+        subclass: Some(Subclass::DraconicBloodline),
+    });
+
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Constitution);
+    character
+        .saving_throw_proficiencies
+        .insert(Ability::Charisma);
+
+    character
+        .skill_proficiencies
+        .insert(Skill::Arcana, ProficiencyLevel::Proficient);
+    character
+        .skill_proficiencies
+        .insert(Skill::Persuasion, ProficiencyLevel::Proficient);
+
+    // Draconic Resilience: AC = 13 + DEX mod = 13 + 2 = 15
+    character.armor_class = ArmorClass {
+        base: 13,
+        armor_type: None, // Unarmored (natural scales)
+        shield_bonus: 0,
+    };
+
+    // Sorcery points (level 2+)
+    character.class_resources.sorcery_points = 3;
+    character.class_resources.max_sorcery_points = 3;
+
+    // Set up spellcasting
+    character.spellcasting = Some(SpellcastingData {
+        ability: Ability::Charisma,
+        spells_known: vec![
+            "Shield".to_string(),
+            "Magic Missile".to_string(),
+            "Burning Hands".to_string(),
+            "Scorching Ray".to_string(),
+        ],
+        spells_prepared: vec![],
+        cantrips_known: vec![
+            "Fire Bolt".to_string(),
+            "Prestidigitation".to_string(),
+            "Light".to_string(),
+            "Ray of Frost".to_string(),
+        ],
+        spell_slots: {
+            let mut slots = SpellSlots::new();
+            slots.slots[0] = SlotInfo { total: 4, used: 0 };
+            slots.slots[1] = SlotInfo { total: 2, used: 0 };
+            slots
+        },
+    });
+
+    character.features.push(Feature {
+        name: "Font of Magic".to_string(),
+        description: "Sorcery points for Metamagic and slot conversion".to_string(),
+        source: "Sorcerer".to_string(),
+        uses: None, // Tracked via class_resources.sorcery_points
+    });
+
+    character.features.push(Feature {
+        name: "Metamagic".to_string(),
+        description: "Quickened Spell, Twinned Spell".to_string(),
+        source: "Sorcerer".to_string(),
+        uses: None,
+    });
+
+    character.features.push(Feature {
+        name: "Draconic Resilience".to_string(),
+        description: "AC = 13 + DEX when not wearing armor, +1 HP per level".to_string(),
+        source: "Draconic Bloodline".to_string(),
+        uses: None,
     });
 
     character

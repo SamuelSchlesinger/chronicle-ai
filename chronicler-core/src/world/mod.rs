@@ -146,4 +146,8 @@ pub use combat::{CombatState, Combatant};
 pub use time::GameTime;
 
 // Game World
-pub use game_world::{create_sample_fighter, GameMode, GameWorld, NarrativeEntry, NarrativeType};
+pub use game_world::{
+    create_sample_barbarian, create_sample_bard, create_sample_cleric, create_sample_druid,
+    create_sample_fighter, create_sample_monk, create_sample_paladin, create_sample_sorcerer,
+    GameMode, GameWorld, NarrativeEntry, NarrativeType,
+};
