@@ -440,20 +440,32 @@ macro_rules! tool {
 
 ## Resolved Design Decisions
 
-### Tool Schema Definition: Derive Macro
+### Tool Schema Definition: Manual JSON
 
 ```rust
-// Proc-macro crate: chronicler-macros
-#[derive(Tool)]
-#[tool(name = "roll_dice", description = "Roll dice using standard notation")]
-struct RollDice {
-    /// The dice notation (e.g., "2d6+3", "1d20 advantage")
-    notation: String,
-    /// Optional reason for the roll
-    reason: Option<String>,
-}
+use claude::Tool;
+use serde_json::json;
 
-// Expands to Tool trait impl with JSON schema generated from struct fields
+pub fn roll_dice() -> Tool {
+    Tool {
+        name: "roll_dice".to_string(),
+        description: "Roll dice using standard notation.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "notation": {
+                    "type": "string",
+                    "description": "The dice notation (e.g., '2d6+3', '1d20 advantage')"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Optional reason for the roll"
+                }
+            },
+            "required": ["notation"]
+        }),
+    }
+}
 ```
 
 ### Subagent Memory: Hybrid Approach

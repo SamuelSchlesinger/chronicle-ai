@@ -2,7 +2,17 @@
 //!
 //! Contains SRD 5.2 spell definitions and lookup functions.
 
+mod cantrips;
 mod database;
+mod level1;
+mod level2;
+mod level3;
+mod level4;
+mod level5;
+mod level6;
+mod level7;
+mod level8;
+mod level9;
 mod types;
 
 // Re-export all public types

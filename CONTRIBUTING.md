@@ -34,7 +34,6 @@ cargo run -p chronicler
 | Crate | Path | Purpose |
 |-------|------|---------|
 | `claude` | `claude/` | Minimal Anthropic API client |
-| `chronicler-macros` | `chronicler-macros/` | Proc macros for tool definitions |
 | `chronicler-core` | `chronicler-core/` | Game engine, rules, AI DM |
 | `chronicler` | `chronicler-bevy/` | Bevy GUI application |
 
@@ -50,21 +49,32 @@ cargo run -p chronicler
 Tools let the AI DM interact with game mechanics. To add one:
 
 ```rust
-use chronicler_macros::Tool;
-use serde::Deserialize;
+use claude::Tool;
+use serde_json::json;
 
-/// Brief description of what the tool does
-#[derive(Tool, Deserialize)]
-#[tool(name = "your_tool_name")]
-struct YourTool {
-    /// Description of this parameter
-    some_param: String,
-    /// Optional parameters use Option
-    optional_param: Option<i32>,
+pub fn your_tool() -> Tool {
+    Tool {
+        name: "your_tool_name".to_string(),
+        description: "Brief description of what the tool does.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "some_param": {
+                    "type": "string",
+                    "description": "Description of this parameter"
+                },
+                "optional_param": {
+                    "type": "integer",
+                    "description": "Optional parameters aren't in required"
+                }
+            },
+            "required": ["some_param"]
+        }),
+    }
 }
 ```
 
-Then implement the tool handler in `chronicler-core/src/dm/tools.rs`.
+Then implement the tool handler in `chronicler-core/src/dm/agent.rs`.
 
 ## D&D Content Guidelines
 

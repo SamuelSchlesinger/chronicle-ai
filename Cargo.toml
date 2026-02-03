@@ -1,5 +1,5 @@
 [workspace]
-members = ["claude", "chronicler-macros", "chronicler-core", "chronicler-bevy"]
+members = ["claude", "chronicler-core", "chronicler-bevy"]
 resolver = "2"
 
 [workspace.package]

@@ -8,7 +8,6 @@ authors.workspace = true
 
 [dependencies]
 claude = { path = "../claude" }
-chronicler-macros = { path = "../chronicler-macros" }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -17,7 +16,6 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 rand = "0.8"
 tokio = { version = "1.0", features = ["sync", "fs"] }
 futures = "0.3"
-lazy_static = "1.4"
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }

@@ -7,6 +7,7 @@ use crate::world::{
     ArmorItem, ArmorType, ConsumableEffect, ConsumableItem, Item, ItemType, WeaponDamageType,
     WeaponItem, WeaponProperty,
 };
+use std::sync::LazyLock;
 
 /// Get a standard weapon by name.
 pub fn get_weapon(name: &str) -> Option<WeaponItem> {
@@ -86,9 +87,9 @@ impl StandardItem {
 // Weapons
 // ============================================================================
 
-lazy_static::lazy_static! {
-    /// Standard D&D 5e weapons.
-    pub static ref WEAPONS: Vec<WeaponItem> = vec![
+/// Standard D&D 5e weapons.
+static WEAPONS: LazyLock<Vec<WeaponItem>> = LazyLock::new(|| {
+    vec![
         // Simple Melee Weapons
         WeaponItem::new("Club", "1d4", WeaponDamageType::Bludgeoning)
             .with_weight(2.0)
@@ -97,7 +98,11 @@ lazy_static::lazy_static! {
         WeaponItem::new("Dagger", "1d4", WeaponDamageType::Piercing)
             .with_weight(1.0)
             .with_value(2.0)
-            .with_properties(vec![WeaponProperty::Finesse, WeaponProperty::Light, WeaponProperty::Thrown])
+            .with_properties(vec![
+                WeaponProperty::Finesse,
+                WeaponProperty::Light,
+                WeaponProperty::Thrown,
+            ])
             .with_range(20, 60),
         WeaponItem::new("Greatclub", "1d8", WeaponDamageType::Bludgeoning)
             .with_weight(10.0)
@@ -132,9 +137,11 @@ lazy_static::lazy_static! {
         WeaponItem::new("Spear", "1d6", WeaponDamageType::Piercing)
             .with_weight(3.0)
             .with_value(1.0)
-            .with_properties(vec![WeaponProperty::Thrown, WeaponProperty::Versatile("1d8".to_string())])
+            .with_properties(vec![
+                WeaponProperty::Thrown,
+                WeaponProperty::Versatile("1d8".to_string()),
+            ])
             .with_range(20, 60),
-
         // Martial Melee Weapons
         WeaponItem::new("Battleaxe", "1d8", WeaponDamageType::Slashing)
             .with_weight(4.0)
@@ -146,7 +153,11 @@ lazy_static::lazy_static! {
         WeaponItem::new("Glaive", "1d10", WeaponDamageType::Slashing)
             .with_weight(6.0)
             .with_value(20.0)
-            .with_properties(vec![WeaponProperty::Heavy, WeaponProperty::Reach, WeaponProperty::TwoHanded]),
+            .with_properties(vec![
+                WeaponProperty::Heavy,
+                WeaponProperty::Reach,
+                WeaponProperty::TwoHanded,
+            ]),
         WeaponItem::new("Greataxe", "1d12", WeaponDamageType::Slashing)
             .with_weight(7.0)
             .with_value(30.0)
@@ -158,7 +169,11 @@ lazy_static::lazy_static! {
         WeaponItem::new("Halberd", "1d10", WeaponDamageType::Slashing)
             .with_weight(6.0)
             .with_value(20.0)
-            .with_properties(vec![WeaponProperty::Heavy, WeaponProperty::Reach, WeaponProperty::TwoHanded]),
+            .with_properties(vec![
+                WeaponProperty::Heavy,
+                WeaponProperty::Reach,
+                WeaponProperty::TwoHanded,
+            ]),
         WeaponItem::new("Lance", "1d12", WeaponDamageType::Piercing)
             .with_weight(6.0)
             .with_value(10.0)
@@ -177,7 +192,11 @@ lazy_static::lazy_static! {
         WeaponItem::new("Pike", "1d10", WeaponDamageType::Piercing)
             .with_weight(18.0)
             .with_value(5.0)
-            .with_properties(vec![WeaponProperty::Heavy, WeaponProperty::Reach, WeaponProperty::TwoHanded]),
+            .with_properties(vec![
+                WeaponProperty::Heavy,
+                WeaponProperty::Reach,
+                WeaponProperty::TwoHanded,
+            ]),
         WeaponItem::new("Rapier", "1d8", WeaponDamageType::Piercing)
             .with_weight(2.0)
             .with_value(25.0)
@@ -193,7 +212,10 @@ lazy_static::lazy_static! {
         WeaponItem::new("Trident", "1d6", WeaponDamageType::Piercing)
             .with_weight(4.0)
             .with_value(5.0)
-            .with_properties(vec![WeaponProperty::Thrown, WeaponProperty::Versatile("1d8".to_string())])
+            .with_properties(vec![
+                WeaponProperty::Thrown,
+                WeaponProperty::Versatile("1d8".to_string()),
+            ])
             .with_range(20, 60),
         WeaponItem::new("War Pick", "1d8", WeaponDamageType::Piercing)
             .with_weight(2.0)
@@ -206,39 +228,56 @@ lazy_static::lazy_static! {
             .with_weight(3.0)
             .with_value(2.0)
             .with_properties(vec![WeaponProperty::Finesse, WeaponProperty::Reach]),
-
         // Simple Ranged Weapons
         WeaponItem::new("Light Crossbow", "1d8", WeaponDamageType::Piercing)
             .with_weight(5.0)
             .with_value(25.0)
-            .with_properties(vec![WeaponProperty::Ammunition, WeaponProperty::Loading, WeaponProperty::TwoHanded])
+            .with_properties(vec![
+                WeaponProperty::Ammunition,
+                WeaponProperty::Loading,
+                WeaponProperty::TwoHanded,
+            ])
             .with_range(80, 320),
         WeaponItem::new("Shortbow", "1d6", WeaponDamageType::Piercing)
             .with_weight(2.0)
             .with_value(25.0)
             .with_properties(vec![WeaponProperty::Ammunition, WeaponProperty::TwoHanded])
             .with_range(80, 320),
-
         // Martial Ranged Weapons
         WeaponItem::new("Hand Crossbow", "1d6", WeaponDamageType::Piercing)
             .with_weight(3.0)
             .with_value(75.0)
-            .with_properties(vec![WeaponProperty::Ammunition, WeaponProperty::Light, WeaponProperty::Loading])
+            .with_properties(vec![
+                WeaponProperty::Ammunition,
+                WeaponProperty::Light,
+                WeaponProperty::Loading,
+            ])
             .with_range(30, 120),
         WeaponItem::new("Heavy Crossbow", "1d10", WeaponDamageType::Piercing)
             .with_weight(18.0)
             .with_value(50.0)
-            .with_properties(vec![WeaponProperty::Ammunition, WeaponProperty::Heavy, WeaponProperty::Loading, WeaponProperty::TwoHanded])
+            .with_properties(vec![
+                WeaponProperty::Ammunition,
+                WeaponProperty::Heavy,
+                WeaponProperty::Loading,
+                WeaponProperty::TwoHanded,
+            ])
             .with_range(100, 400),
         WeaponItem::new("Longbow", "1d8", WeaponDamageType::Piercing)
             .with_weight(2.0)
             .with_value(50.0)
-            .with_properties(vec![WeaponProperty::Ammunition, WeaponProperty::Heavy, WeaponProperty::TwoHanded])
+            .with_properties(vec![
+                WeaponProperty::Ammunition,
+                WeaponProperty::Heavy,
+                WeaponProperty::TwoHanded,
+            ])
             .with_range(150, 600),
-    ];
+    ]
+});
 
-    /// Standard D&D 5e armor.
-    pub static ref ARMORS: Vec<ArmorItem> = vec![
+/// Standard D&D 5e armor.
+static ARMORS: LazyLock<Vec<ArmorItem>> = LazyLock::new(|| {
+    vec![
         // Light Armor
         ArmorItem::new("Padded Armor", ArmorType::Light, 11)
             .with_weight(8.0)
@@ -250,7 +289,6 @@ lazy_static::lazy_static! {
         ArmorItem::new("Studded Leather", ArmorType::Light, 12)
             .with_weight(13.0)
             .with_value(45.0),
-
         // Medium Armor
         ArmorItem::new("Hide Armor", ArmorType::Medium, 12)
             .with_weight(12.0)
@@ -269,7 +307,6 @@ lazy_static::lazy_static! {
             .with_weight(40.0)
             .with_value(750.0)
             .with_stealth_disadvantage(),
-
         // Heavy Armor
         ArmorItem::new("Ring Mail", ArmorType::Heavy, 14)
             .with_weight(40.0)
@@ -290,10 +327,12 @@ lazy_static::lazy_static! {
             .with_value(1500.0)
             .with_strength_requirement(15)
             .with_stealth_disadvantage(),
-    ];
+    ]
+});
 
-    /// Standard D&D 5e potions.
-    pub static ref POTIONS: Vec<ConsumableItem> = vec![
+/// Standard D&D 5e potions.
+static POTIONS: LazyLock<Vec<ConsumableItem>> = LazyLock::new(|| {
+    vec![
         ConsumableItem::healing_potion("Potion of Healing", "2d4", 2, 50.0),
         ConsumableItem::healing_potion("Potion of Greater Healing", "4d4", 4, 150.0),
         ConsumableItem::healing_potion("Potion of Superior Healing", "8d4", 8, 450.0),
@@ -304,7 +343,9 @@ lazy_static::lazy_static! {
                 quantity: 1,
                 weight: 0.0,
                 value_gp: 50.0,
-                description: Some("Grants advantage on saving throws against poison for 1 hour.".to_string()),
+                description: Some(
+                    "Grants advantage on saving throws against poison for 1 hour.".to_string(),
+                ),
                 item_type: ItemType::Potion,
                 magical: false,
             },
@@ -313,10 +354,12 @@ lazy_static::lazy_static! {
                 duration_rounds: 600, // ~1 hour
             },
         },
-    ];
+    ]
+});
 
-    /// Standard adventuring gear.
-    pub static ref ADVENTURING_GEAR: Vec<Item> = vec![
+/// Standard adventuring gear.
+static ADVENTURING_GEAR: LazyLock<Vec<Item>> = LazyLock::new(|| {
+    vec![
         Item {
             name: "Backpack".to_string(),
             quantity: 1,
@@ -479,8 +522,8 @@ lazy_static::lazy_static! {
             item_type: ItemType::Shield,
             magical: false,
         },
-    ];
-}
+]
+});
 
 #[cfg(test)]
 mod tests {

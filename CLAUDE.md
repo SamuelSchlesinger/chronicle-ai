@@ -71,12 +71,11 @@ This will block commits that fail formatting, clippy, or tests.
 
 ## Workspace Structure
 
-This workspace contains 4 crates:
+This workspace contains 3 crates:
 
 | Crate | Path | Description |
 |-------|------|-------------|
 | `claude` | `claude/` | Minimal Anthropic Claude API client |
-| `chronicler-macros` | `chronicler-macros/` | Procedural macros for tool definitions |
 | `chronicler-core` | `chronicler-core/` | Tabletop RPG game engine compatible with D&D 5e, with AI Dungeon Master |
 | `chronicler` | `chronicler-bevy/` | Bevy GUI application |
 
@@ -126,19 +125,30 @@ dm/
 
 ## Adding a New Tool
 
-### Using the derive macro (recommended):
+Create a function that returns a `claude::Tool` with a JSON schema:
 
 ```rust
-use chronicler_macros::Tool;
-use serde::Deserialize;
+use claude::Tool;
+use serde_json::json;
 
-/// Roll dice using standard notation
-#[derive(Tool, Deserialize)]
-#[tool(name = "roll_dice")]
-struct RollDice {
-    /// Dice notation like "2d6+3"
-    notation: String,
-    /// Optional purpose for the roll
-    purpose: Option<String>,
+pub fn roll_dice() -> Tool {
+    Tool {
+        name: "roll_dice".to_string(),
+        description: "Roll dice using standard D&D notation.".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "notation": {
+                    "type": "string",
+                    "description": "Dice notation like '2d6+3'"
+                },
+                "purpose": {
+                    "type": "string",
+                    "description": "Optional purpose for the roll"
+                }
+            },
+            "required": ["notation"]
+        }),
+    }
 }
 ```
