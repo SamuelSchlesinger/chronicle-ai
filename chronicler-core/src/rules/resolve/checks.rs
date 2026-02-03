@@ -239,3 +239,331 @@ impl RulesEngine {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::types::Effect;
+    use crate::world::create_sample_fighter;
+
+    // ========== Skill Check Tests ==========
+
+    #[test]
+    fn test_skill_check_produces_effects() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_skill_check(
+            &world,
+            world.player_character.id,
+            Skill::Athletics,
+            10,
+            Advantage::Normal,
+            "climbing a wall",
+        );
+
+        // Should have a dice roll effect
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+
+        // Should have either success or failure effect
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::CheckSucceeded { .. } | Effect::CheckFailed { .. }
+        )));
+    }
+
+    #[test]
+    fn test_skill_check_unconscious_fails_str_dex() {
+        let mut character = create_sample_fighter("Roland");
+        character.add_condition(Condition::Unconscious, "test");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Athletics (STR) should auto-fail
+        let resolution = engine.resolve_skill_check(
+            &world,
+            world.player_character.id,
+            Skill::Athletics,
+            10,
+            Advantage::Normal,
+            "test",
+        );
+        assert!(resolution.narrative.contains("unconscious"));
+        assert!(resolution.narrative.contains("automatically fails"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CheckFailed { roll: 0, .. })));
+
+        // Acrobatics (DEX) should also auto-fail
+        let resolution = engine.resolve_skill_check(
+            &world,
+            world.player_character.id,
+            Skill::Acrobatics,
+            10,
+            Advantage::Normal,
+            "test",
+        );
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CheckFailed { roll: 0, .. })));
+    }
+
+    #[test]
+    fn test_skill_check_unconscious_can_pass_mental() {
+        let mut character = create_sample_fighter("Roland");
+        character.add_condition(Condition::Unconscious, "test");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Perception (WIS) should NOT auto-fail (though mechanically odd, rules allow it)
+        let resolution = engine.resolve_skill_check(
+            &world,
+            world.player_character.id,
+            Skill::Perception,
+            1, // Very low DC to ensure success
+            Advantage::Normal,
+            "test",
+        );
+        // Should roll normally
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+    }
+
+    #[test]
+    fn test_skill_check_with_proficiency() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Fighter has Athletics proficiency
+        let resolution = engine.resolve_skill_check(
+            &world,
+            world.player_character.id,
+            Skill::Athletics,
+            15,
+            Advantage::Normal,
+            "test",
+        );
+
+        // Should include dice roll (can't verify proficiency bonus easily, but we know it was used)
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+    }
+
+    // ========== Ability Check Tests ==========
+
+    #[test]
+    fn test_ability_check_produces_effects() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_ability_check(
+            &world,
+            world.player_character.id,
+            Ability::Strength,
+            15,
+            Advantage::Normal,
+            "lifting a boulder",
+        );
+
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::CheckSucceeded { .. } | Effect::CheckFailed { .. }
+        )));
+    }
+
+    #[test]
+    fn test_ability_check_unconscious_fails_str_dex() {
+        let mut character = create_sample_fighter("Roland");
+        character.add_condition(Condition::Unconscious, "test");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // STR check should auto-fail
+        let resolution = engine.resolve_ability_check(
+            &world,
+            world.player_character.id,
+            Ability::Strength,
+            10,
+            Advantage::Normal,
+            "test",
+        );
+        assert!(resolution.narrative.contains("unconscious"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CheckFailed { roll: 0, .. })));
+
+        // DEX check should auto-fail
+        let resolution = engine.resolve_ability_check(
+            &world,
+            world.player_character.id,
+            Ability::Dexterity,
+            10,
+            Advantage::Normal,
+            "test",
+        );
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CheckFailed { roll: 0, .. })));
+    }
+
+    #[test]
+    fn test_ability_check_with_advantage() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Just verify it runs without error with advantage
+        let resolution = engine.resolve_ability_check(
+            &world,
+            world.player_character.id,
+            Ability::Intelligence,
+            10,
+            Advantage::Advantage,
+            "test",
+        );
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+    }
+
+    // ========== Saving Throw Tests ==========
+
+    #[test]
+    fn test_saving_throw_produces_effects() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_saving_throw(
+            &world,
+            world.player_character.id,
+            Ability::Constitution,
+            15,
+            Advantage::Normal,
+            "poison",
+        );
+
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::CheckSucceeded { .. } | Effect::CheckFailed { .. }
+        )));
+    }
+
+    #[test]
+    fn test_saving_throw_with_proficiency() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Fighter has STR and CON save proficiency
+        let resolution = engine.resolve_saving_throw(
+            &world,
+            world.player_character.id,
+            Ability::Constitution,
+            1, // Very low DC to likely pass
+            Advantage::Normal,
+            "test",
+        );
+
+        assert!(resolution.narrative.contains("saving throw"));
+    }
+
+    #[test]
+    fn test_saving_throw_unconscious_fails_str_dex() {
+        let mut character = create_sample_fighter("Roland");
+        character.add_condition(Condition::Unconscious, "test");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // STR save should auto-fail
+        let resolution = engine.resolve_saving_throw(
+            &world,
+            world.player_character.id,
+            Ability::Strength,
+            10,
+            Advantage::Normal,
+            "test",
+        );
+        assert!(resolution.narrative.contains("unconscious"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CheckFailed { roll: 0, .. })));
+
+        // DEX save should auto-fail
+        let resolution = engine.resolve_saving_throw(
+            &world,
+            world.player_character.id,
+            Ability::Dexterity,
+            10,
+            Advantage::Normal,
+            "test",
+        );
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::CheckFailed { roll: 0, .. })));
+    }
+
+    // ========== Dice Roll Tests ==========
+
+    #[test]
+    fn test_roll_dice_valid() {
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_roll_dice("2d6+5", "damage");
+
+        assert!(resolution.narrative.contains("2d6+5"));
+        assert!(resolution.narrative.contains("damage"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+    }
+
+    #[test]
+    fn test_roll_dice_invalid() {
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_roll_dice("invalid_notation", "test");
+
+        assert!(resolution.narrative.contains("Failed to roll"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_roll_dice_complex_notation() {
+        let engine = RulesEngine::new();
+
+        // Keep highest 3 of 4d6
+        let resolution = engine.resolve_roll_dice("4d6kh3", "ability score");
+
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::DiceRolled { .. })));
+    }
+}
