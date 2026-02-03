@@ -627,3 +627,704 @@ impl RulesEngine {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::types::Effect;
+    use crate::world::{
+        create_sample_barbarian, create_sample_bard, create_sample_cleric, create_sample_druid,
+        create_sample_fighter, create_sample_monk, create_sample_paladin, create_sample_sorcerer,
+    };
+
+    // ========== Rage Tests (Barbarian) ==========
+
+    #[test]
+    fn test_use_rage_success() {
+        let character = create_sample_barbarian("Conan");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_rage(&world, world.player_character.id);
+
+        assert!(resolution.narrative.contains("enters a RAGE"));
+        assert!(resolution.narrative.contains("+2 rage damage"));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::RageStarted {
+                damage_bonus: 2,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn test_use_rage_already_raging() {
+        let mut character = create_sample_barbarian("Conan");
+        character.class_resources.rage_active = true;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_rage(&world, world.player_character.id);
+
+        assert!(resolution.narrative.contains("already raging"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_rage_no_uses_remaining() {
+        let mut character = create_sample_barbarian("Conan");
+        // Set rage uses to 0
+        for feature in &mut character.features {
+            if feature.name == "Rage" {
+                if let Some(ref mut uses) = feature.uses {
+                    uses.current = 0;
+                }
+            }
+        }
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_rage(&world, world.player_character.id);
+
+        assert!(resolution.narrative.contains("no rage uses remaining"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_end_rage_success() {
+        let mut character = create_sample_barbarian("Conan");
+        character.class_resources.rage_active = true;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_end_rage(&world, world.player_character.id, "voluntary");
+
+        assert!(resolution.narrative.contains("rage ends"));
+        assert!(resolution.narrative.contains("voluntarily"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::RageEnded { .. })));
+    }
+
+    #[test]
+    fn test_end_rage_not_raging() {
+        let character = create_sample_barbarian("Conan");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_end_rage(&world, world.player_character.id, "voluntary");
+
+        assert!(resolution.narrative.contains("not currently raging"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_end_rage_various_reasons() {
+        let mut character = create_sample_barbarian("Conan");
+        character.class_resources.rage_active = true;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let reasons = [
+            ("duration_expired", "1 minute duration expired"),
+            ("unconscious", "knocked unconscious"),
+            ("no_combat_action", "without attacking or taking damage"),
+        ];
+
+        for (reason, expected_text) in reasons {
+            let resolution = engine.resolve_end_rage(&world, world.player_character.id, reason);
+            assert!(
+                resolution.narrative.contains(expected_text),
+                "Failed for reason: {}",
+                reason
+            );
+        }
+    }
+
+    // ========== Ki Tests (Monk) ==========
+
+    #[test]
+    fn test_use_ki_success() {
+        let character = create_sample_monk("Lee");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_ki(&world, world.player_character.id, 1, "flurry_of_blows");
+
+        assert!(resolution.narrative.contains("spends 1 ki point"));
+        assert!(resolution.narrative.contains("Flurry of Blows"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ClassResourceUsed { resource_name, .. } if resource_name == "Ki Points")));
+    }
+
+    #[test]
+    fn test_use_ki_insufficient_points() {
+        let mut character = create_sample_monk("Lee");
+        character.class_resources.ki_points = 0;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_ki(&world, world.player_character.id, 1, "flurry_of_blows");
+
+        assert!(resolution.narrative.contains("doesn't have enough ki"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_ki_various_abilities() {
+        let character = create_sample_monk("Lee");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let abilities = [
+            ("patient_defense", "Patient Defense"),
+            ("step_of_the_wind", "Step of the Wind"),
+            ("stunning_strike", "Stunning Strike"),
+        ];
+
+        for (ability, expected_text) in abilities {
+            let resolution = engine.resolve_use_ki(&world, world.player_character.id, 1, ability);
+            assert!(
+                resolution.narrative.contains(expected_text),
+                "Failed for ability: {}",
+                ability
+            );
+        }
+    }
+
+    // ========== Lay on Hands Tests (Paladin) ==========
+
+    #[test]
+    fn test_use_lay_on_hands_heal_only() {
+        let character = create_sample_paladin("Arthur");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_lay_on_hands(
+            &world,
+            world.player_character.id,
+            "Wounded Ally",
+            10,
+            false,
+            false,
+        );
+
+        assert!(resolution.narrative.contains("Lay on Hands"));
+        assert!(resolution.narrative.contains("restores 10 HP"));
+        assert!(resolution.narrative.contains("5 HP remaining"));
+    }
+
+    #[test]
+    fn test_use_lay_on_hands_cure_disease() {
+        let character = create_sample_paladin("Arthur");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_lay_on_hands(
+            &world,
+            world.player_character.id,
+            "Diseased Ally",
+            0,
+            true,
+            false,
+        );
+
+        assert!(resolution.narrative.contains("cures one disease"));
+        assert!(resolution.narrative.contains("10 HP remaining")); // 15 - 5 = 10
+    }
+
+    #[test]
+    fn test_use_lay_on_hands_neutralize_poison() {
+        let character = create_sample_paladin("Arthur");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_lay_on_hands(
+            &world,
+            world.player_character.id,
+            "Poisoned Ally",
+            0,
+            false,
+            true,
+        );
+
+        assert!(resolution.narrative.contains("neutralizes one poison"));
+    }
+
+    #[test]
+    fn test_use_lay_on_hands_insufficient_pool() {
+        let mut character = create_sample_paladin("Arthur");
+        character.class_resources.lay_on_hands_pool = 5;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_lay_on_hands(
+            &world,
+            world.player_character.id,
+            "Ally",
+            10,
+            true,
+            true,
+        ); // 10 + 5 + 5 = 20 needed
+
+        assert!(resolution.narrative.contains("doesn't have enough"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_lay_on_hands_combined() {
+        let character = create_sample_paladin("Arthur");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_lay_on_hands(
+            &world,
+            world.player_character.id,
+            "Ally",
+            5,
+            true,
+            true,
+        ); // 5 + 5 + 5 = 15 total
+
+        assert!(resolution.narrative.contains("restores 5 HP"));
+        assert!(resolution.narrative.contains("cures one disease"));
+        assert!(resolution.narrative.contains("neutralizes one poison"));
+        assert!(resolution.narrative.contains("0 HP remaining")); // 15 - 15 = 0
+    }
+
+    // ========== Divine Smite Tests (Paladin) ==========
+
+    #[test]
+    fn test_use_divine_smite_level_1_slot() {
+        let character = create_sample_paladin("Arthur");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_divine_smite(&world, world.player_character.id, 1, false);
+
+        assert!(resolution.narrative.contains("Divine Smite"));
+        assert!(resolution.narrative.contains("2d8")); // Base is 2d8 at level 1
+        assert!(resolution.narrative.contains("Level 1 slot expended"));
+    }
+
+    #[test]
+    fn test_use_divine_smite_higher_slots() {
+        let mut character = create_sample_paladin("Arthur");
+        // Grant level 2 and 3 spell slots for testing
+        if let Some(ref mut spellcasting) = character.spellcasting {
+            spellcasting.spell_slots.slots[1] = crate::world::SlotInfo { total: 2, used: 0 }; // Level 2
+            spellcasting.spell_slots.slots[2] = crate::world::SlotInfo { total: 2, used: 0 };
+            // Level 3
+        }
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        // Level 2 slot = 3d8
+        let resolution =
+            engine.resolve_use_divine_smite(&world, world.player_character.id, 2, false);
+        assert!(resolution.narrative.contains("3d8"));
+
+        // Level 3 slot = 4d8
+        let resolution =
+            engine.resolve_use_divine_smite(&world, world.player_character.id, 3, false);
+        assert!(resolution.narrative.contains("4d8"));
+    }
+
+    #[test]
+    fn test_use_divine_smite_vs_undead() {
+        let character = create_sample_paladin("Arthur");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_divine_smite(&world, world.player_character.id, 1, true);
+
+        assert!(resolution.narrative.contains("3d8")); // 2d8 + 1d8 vs undead
+        assert!(resolution.narrative.contains("extra damage vs undead"));
+    }
+
+    #[test]
+    fn test_use_divine_smite_no_slots() {
+        let mut character = create_sample_paladin("Arthur");
+        // Use all spell slots
+        if let Some(ref mut spellcasting) = character.spellcasting {
+            spellcasting.spell_slots.slots[0].used = spellcasting.spell_slots.slots[0].total;
+        }
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_divine_smite(&world, world.player_character.id, 1, false);
+
+        assert!(resolution.narrative.contains("no level 1 spell slots"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Wild Shape Tests (Druid) ==========
+
+    #[test]
+    fn test_use_wild_shape_success() {
+        let character = create_sample_druid("Radagast");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_wild_shape(&world, world.player_character.id, "Wolf", 11, Some(13));
+
+        assert!(resolution.narrative.contains("transforms into a Wolf"));
+        assert!(resolution.narrative.contains("11 HP"));
+        assert!(resolution.narrative.contains("1 hour")); // Level 3 druid = 1 hour
+    }
+
+    #[test]
+    fn test_use_wild_shape_already_transformed() {
+        let mut character = create_sample_druid("Radagast");
+        character.class_resources.wild_shape_form = Some("Bear".to_string());
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_wild_shape(&world, world.player_character.id, "Wolf", 11, None);
+
+        assert!(resolution.narrative.contains("already in Wild Shape"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_wild_shape_no_uses() {
+        let mut character = create_sample_druid("Radagast");
+        for feature in &mut character.features {
+            if feature.name == "Wild Shape" {
+                if let Some(ref mut uses) = feature.uses {
+                    uses.current = 0;
+                }
+            }
+        }
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_wild_shape(&world, world.player_character.id, "Wolf", 11, None);
+
+        assert!(resolution
+            .narrative
+            .contains("no Wild Shape uses remaining"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_end_wild_shape_excess_damage() {
+        let mut character = create_sample_druid("Radagast");
+        character.class_resources.wild_shape_form = Some("Wolf".to_string());
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_end_wild_shape(&world, world.player_character.id, "hp_zero", 5);
+
+        assert!(resolution
+            .narrative
+            .contains("reverts to their normal form"));
+        assert!(resolution.narrative.contains("5 excess damage"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::HpChanged { amount: -5, .. })));
+    }
+
+    #[test]
+    fn test_end_wild_shape_not_transformed() {
+        let character = create_sample_druid("Radagast");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_end_wild_shape(&world, world.player_character.id, "voluntary", 0);
+
+        assert!(resolution.narrative.contains("not currently in Wild Shape"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Channel Divinity Tests (Cleric/Paladin) ==========
+
+    #[test]
+    fn test_use_channel_divinity_turn_undead() {
+        let character = create_sample_cleric("Brother Marcus");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_channel_divinity(
+            &world,
+            world.player_character.id,
+            "Turn Undead",
+            &["Zombie".to_string(), "Skeleton".to_string()],
+        );
+
+        assert!(resolution.narrative.contains("Turn Undead"));
+        assert!(resolution.narrative.contains("Targets: Zombie, Skeleton"));
+    }
+
+    #[test]
+    fn test_use_channel_divinity_divine_spark() {
+        let character = create_sample_cleric("Brother Marcus");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_channel_divinity(
+            &world,
+            world.player_character.id,
+            "Divine Spark",
+            &[],
+        );
+
+        assert!(resolution.narrative.contains("Divine Spark"));
+        assert!(resolution.narrative.contains("1d8"));
+    }
+
+    #[test]
+    fn test_use_channel_divinity_no_uses() {
+        let mut character = create_sample_cleric("Brother Marcus");
+        for feature in &mut character.features {
+            if feature.name == "Channel Divinity" {
+                if let Some(ref mut uses) = feature.uses {
+                    uses.current = 0;
+                }
+            }
+        }
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_channel_divinity(
+            &world,
+            world.player_character.id,
+            "Turn Undead",
+            &[],
+        );
+
+        assert!(resolution
+            .narrative
+            .contains("no Channel Divinity uses remaining"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Bardic Inspiration Tests ==========
+
+    #[test]
+    fn test_use_bardic_inspiration_success() {
+        let character = create_sample_bard("Dandelion");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_bardic_inspiration(&world, world.player_character.id, "Ally", "d6");
+
+        assert!(resolution.narrative.contains("inspires Ally"));
+        assert!(resolution.narrative.contains("d6 Bardic Inspiration"));
+    }
+
+    #[test]
+    fn test_use_bardic_inspiration_no_uses() {
+        let mut character = create_sample_bard("Dandelion");
+        for feature in &mut character.features {
+            if feature.name == "Bardic Inspiration" {
+                if let Some(ref mut uses) = feature.uses {
+                    uses.current = 0;
+                }
+            }
+        }
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_bardic_inspiration(&world, world.player_character.id, "Ally", "d6");
+
+        assert!(resolution
+            .narrative
+            .contains("no Bardic Inspiration uses remaining"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Action Surge Tests (Fighter) ==========
+
+    #[test]
+    fn test_use_action_surge_success() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_action_surge(&world, world.player_character.id, "Attack action");
+
+        assert!(resolution.narrative.contains("surges with renewed vigor"));
+        assert!(resolution.narrative.contains("Attack action"));
+    }
+
+    #[test]
+    fn test_use_action_surge_already_used() {
+        let mut character = create_sample_fighter("Roland");
+        character.class_resources.action_surge_used = true;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_use_action_surge(&world, world.player_character.id, "Attack action");
+
+        assert!(resolution.narrative.contains("already used Action Surge"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Second Wind Tests (Fighter) ==========
+
+    #[test]
+    fn test_use_second_wind_success() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_second_wind(&world, world.player_character.id);
+
+        assert!(resolution.narrative.contains("Second Wind"));
+        assert!(resolution.narrative.contains("1d10+3")); // Level 3 fighter
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::HpChanged { .. })));
+    }
+
+    #[test]
+    fn test_use_second_wind_already_used() {
+        let mut character = create_sample_fighter("Roland");
+        character.class_resources.second_wind_used = true;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_second_wind(&world, world.player_character.id);
+
+        assert!(resolution.narrative.contains("already used Second Wind"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Sorcery Points Tests (Sorcerer) ==========
+
+    #[test]
+    fn test_use_sorcery_points_metamagic() {
+        let character = create_sample_sorcerer("Vex");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_sorcery_points(
+            &world,
+            world.player_character.id,
+            2,
+            "quickened",
+            Some("Fireball"),
+            None,
+        );
+
+        assert!(resolution.narrative.contains("Quickened Spell"));
+        assert!(resolution.narrative.contains("on Fireball"));
+        assert!(resolution.narrative.contains("2 sorcery points"));
+    }
+
+    #[test]
+    fn test_use_sorcery_points_convert_to_slot() {
+        let character = create_sample_sorcerer("Vex");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_sorcery_points(
+            &world,
+            world.player_character.id,
+            2,
+            "convert_to_slot",
+            None,
+            Some(2),
+        );
+
+        assert!(resolution.narrative.contains("converts 2 sorcery points"));
+        assert!(resolution.narrative.contains("level 2 spell slot"));
+    }
+
+    #[test]
+    fn test_use_sorcery_points_convert_from_slot() {
+        let character = create_sample_sorcerer("Vex");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_sorcery_points(
+            &world,
+            world.player_character.id,
+            0,
+            "convert_from_slot",
+            None,
+            Some(2),
+        );
+
+        assert!(resolution
+            .narrative
+            .contains("converts a level 2 spell slot"));
+        assert!(resolution.narrative.contains("2 sorcery points"));
+    }
+
+    #[test]
+    fn test_use_sorcery_points_insufficient() {
+        let mut character = create_sample_sorcerer("Vex");
+        character.class_resources.sorcery_points = 0;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_sorcery_points(
+            &world,
+            world.player_character.id,
+            2,
+            "quickened",
+            Some("Fireball"),
+            None,
+        );
+
+        assert!(resolution
+            .narrative
+            .contains("doesn't have enough sorcery points"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_sorcery_points_various_metamagic() {
+        let character = create_sample_sorcerer("Vex");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let metamagics = [
+            ("careful", "Careful Spell"),
+            ("distant", "Distant Spell"),
+            ("empowered", "Empowered Spell"),
+            ("extended", "Extended Spell"),
+            ("heightened", "Heightened Spell"),
+            ("subtle", "Subtle Spell"),
+            ("twinned", "Twinned Spell"),
+        ];
+
+        for (metamagic, expected) in metamagics {
+            let resolution = engine.resolve_use_sorcery_points(
+                &world,
+                world.player_character.id,
+                1,
+                metamagic,
+                None,
+                None,
+            );
+            assert!(
+                resolution.narrative.contains(expected),
+                "Failed for metamagic: {}",
+                metamagic
+            );
+        }
+    }
+}
