@@ -43,24 +43,139 @@ pub use world::parse_world_tool;
 use crate::rules::Intent;
 use crate::world::GameWorld;
 use serde_json::Value;
+use std::sync::LazyLock;
+
+/// Tool domain categories for O(1) dispatch.
+#[derive(Debug, Clone, Copy)]
+enum ToolDomain {
+    Checks,
+    Combat,
+    Inventory,
+    ClassFeatures,
+    World,
+    Quests,
+    Npc,
+    Locations,
+    Gameplay,
+    State,
+    Knowledge,
+    Schedule,
+}
+
+/// Static mapping of tool names to their domains for O(1) lookup.
+static TOOL_DOMAINS: LazyLock<std::collections::HashMap<&'static str, ToolDomain>> =
+    LazyLock::new(|| {
+        let mut m = std::collections::HashMap::new();
+
+        // Checks domain
+        m.insert("roll_dice", ToolDomain::Checks);
+        m.insert("skill_check", ToolDomain::Checks);
+        m.insert("ability_check", ToolDomain::Checks);
+        m.insert("saving_throw", ToolDomain::Checks);
+
+        // Combat domain
+        m.insert("apply_damage", ToolDomain::Combat);
+        m.insert("apply_healing", ToolDomain::Combat);
+        m.insert("apply_condition", ToolDomain::Combat);
+        m.insert("remove_condition", ToolDomain::Combat);
+        m.insert("start_combat", ToolDomain::Combat);
+        m.insert("end_combat", ToolDomain::Combat);
+        m.insert("next_turn", ToolDomain::Combat);
+        m.insert("death_save", ToolDomain::Combat);
+        m.insert("concentration_check", ToolDomain::Combat);
+        m.insert("attack", ToolDomain::Combat);
+
+        // Inventory domain
+        m.insert("give_item", ToolDomain::Inventory);
+        m.insert("remove_item", ToolDomain::Inventory);
+        m.insert("use_item", ToolDomain::Inventory);
+        m.insert("equip_item", ToolDomain::Inventory);
+        m.insert("unequip_item", ToolDomain::Inventory);
+        m.insert("adjust_gold", ToolDomain::Inventory);
+        m.insert("adjust_silver", ToolDomain::Inventory);
+
+        // Class features domain
+        m.insert("use_rage", ToolDomain::ClassFeatures);
+        m.insert("end_rage", ToolDomain::ClassFeatures);
+        m.insert("use_ki", ToolDomain::ClassFeatures);
+        m.insert("use_lay_on_hands", ToolDomain::ClassFeatures);
+        m.insert("use_divine_smite", ToolDomain::ClassFeatures);
+        m.insert("use_wild_shape", ToolDomain::ClassFeatures);
+        m.insert("end_wild_shape", ToolDomain::ClassFeatures);
+        m.insert("use_channel_divinity", ToolDomain::ClassFeatures);
+        m.insert("use_bardic_inspiration", ToolDomain::ClassFeatures);
+        m.insert("use_action_surge", ToolDomain::ClassFeatures);
+        m.insert("use_second_wind", ToolDomain::ClassFeatures);
+        m.insert("use_sorcery_points", ToolDomain::ClassFeatures);
+
+        // World domain
+        m.insert("short_rest", ToolDomain::World);
+        m.insert("long_rest", ToolDomain::World);
+        m.insert("change_location", ToolDomain::World);
+        m.insert("remember_fact", ToolDomain::World);
+        m.insert("register_consequence", ToolDomain::World);
+        m.insert("cast_spell", ToolDomain::World);
+        m.insert("award_experience", ToolDomain::World);
+
+        // Quests domain
+        m.insert("create_quest", ToolDomain::Quests);
+        m.insert("add_quest_objective", ToolDomain::Quests);
+        m.insert("complete_objective", ToolDomain::Quests);
+        m.insert("complete_quest", ToolDomain::Quests);
+        m.insert("fail_quest", ToolDomain::Quests);
+        m.insert("update_quest", ToolDomain::Quests);
+
+        // NPC domain
+        m.insert("create_npc", ToolDomain::Npc);
+        m.insert("update_npc", ToolDomain::Npc);
+        m.insert("move_npc", ToolDomain::Npc);
+        m.insert("remove_npc", ToolDomain::Npc);
+
+        // Locations domain
+        m.insert("create_location", ToolDomain::Locations);
+        m.insert("connect_locations", ToolDomain::Locations);
+        m.insert("update_location", ToolDomain::Locations);
+
+        // Gameplay domain
+        m.insert("modify_ability_score", ToolDomain::Gameplay);
+        m.insert("advance_time", ToolDomain::Gameplay);
+        m.insert("restore_spell_slot", ToolDomain::Gameplay);
+
+        // State domain
+        m.insert("assert_state", ToolDomain::State);
+
+        // Knowledge domain
+        m.insert("share_knowledge", ToolDomain::Knowledge);
+
+        // Schedule domain
+        m.insert("schedule_event", ToolDomain::Schedule);
+        m.insert("cancel_event", ToolDomain::Schedule);
+
+        m
+    });
 
 /// Parse a tool call into an Intent.
 ///
-/// Tries each domain parser in turn until one returns a result.
+/// Uses O(1) HashMap lookup to find the appropriate domain parser.
 pub fn parse_tool_call(name: &str, input: &Value, world: &GameWorld) -> Option<Intent> {
-    // Try each domain parser in turn
-    parse_checks_tool(name, input, world)
-        .or_else(|| parse_combat_tool(name, input, world))
-        .or_else(|| parse_inventory_tool(name, input))
-        .or_else(|| parse_class_features_tool(name, input, world))
-        .or_else(|| parse_world_tool(name, input, world))
-        .or_else(|| parse_quests_tool(name, input))
-        .or_else(|| parse_npc_tool(name, input))
-        .or_else(|| parse_locations_tool(name, input))
-        .or_else(|| parse_gameplay_tool(name, input, world))
-        .or_else(|| parse_state_tool(name, input))
-        .or_else(|| parse_knowledge_tool(name, input))
-        .or_else(|| parse_schedule_tool(name, input))
+    // O(1) lookup for tool domain
+    let domain = TOOL_DOMAINS.get(name)?;
+
+    // Dispatch to the appropriate domain parser
+    match domain {
+        ToolDomain::Checks => parse_checks_tool(name, input, world),
+        ToolDomain::Combat => parse_combat_tool(name, input, world),
+        ToolDomain::Inventory => parse_inventory_tool(name, input),
+        ToolDomain::ClassFeatures => parse_class_features_tool(name, input, world),
+        ToolDomain::World => parse_world_tool(name, input, world),
+        ToolDomain::Quests => parse_quests_tool(name, input),
+        ToolDomain::Npc => parse_npc_tool(name, input),
+        ToolDomain::Locations => parse_locations_tool(name, input),
+        ToolDomain::Gameplay => parse_gameplay_tool(name, input, world),
+        ToolDomain::State => parse_state_tool(name, input),
+        ToolDomain::Knowledge => parse_knowledge_tool(name, input),
+        ToolDomain::Schedule => parse_schedule_tool(name, input),
+    }
 }
 
 #[cfg(test)]
