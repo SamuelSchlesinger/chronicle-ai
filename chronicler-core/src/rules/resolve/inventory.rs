@@ -346,3 +346,511 @@ impl RulesEngine {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rules::types::Effect;
+    use crate::rules::RulesEngine;
+    use crate::world::{create_sample_fighter, Item, ItemType};
+
+    // ========== Add Item Tests ==========
+
+    #[test]
+    fn test_add_item_new_item() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_add_item(&world, "Longsword", 1, None, None, false, None, None);
+
+        assert!(resolution.narrative.contains("receives"));
+        assert!(resolution.narrative.contains("Longsword"));
+        assert!(resolution.narrative.contains("1 total"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ItemAdded { item_name, quantity: 1, new_total: 1 } if item_name == "Longsword")));
+    }
+
+    #[test]
+    fn test_add_item_existing_item_stacks() {
+        let mut character = create_sample_fighter("Roland");
+        // Add an existing item to inventory
+        character.inventory.items.push(Item {
+            name: "Healing Potion".to_string(),
+            quantity: 2,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_add_item(&world, "Healing Potion", 3, None, None, true, None, None);
+
+        assert!(resolution.narrative.contains("5 total")); // 2 + 3 = 5
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ItemAdded { new_total: 5, .. })));
+    }
+
+    #[test]
+    fn test_add_item_multiple_quantity() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution =
+            engine.resolve_add_item(&world, "Arrow", 20, None, None, false, None, None);
+
+        assert!(resolution.narrative.contains("20 x Arrow"));
+        assert!(resolution.narrative.contains("20 total"));
+    }
+
+    // ========== Remove Item Tests ==========
+
+    #[test]
+    fn test_remove_item_success() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Healing Potion".to_string(),
+            quantity: 3,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_remove_item(&world, "Healing Potion", 1);
+
+        assert!(resolution.narrative.contains("loses"));
+        assert!(resolution.narrative.contains("2 remaining"));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::ItemRemoved {
+                quantity: 1,
+                remaining: 2,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn test_remove_item_insufficient() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Healing Potion".to_string(),
+            quantity: 1,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_remove_item(&world, "Healing Potion", 5);
+
+        assert!(resolution.narrative.contains("doesn't have enough"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_remove_item_not_found() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_remove_item(&world, "Nonexistent Item", 1);
+
+        assert!(resolution.narrative.contains("doesn't have any"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Equip Item Tests ==========
+
+    #[test]
+    fn test_equip_item_weapon() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Longsword".to_string(),
+            quantity: 1,
+            weight: 3.0,
+            value_gp: 15.0,
+            description: None,
+            item_type: ItemType::Weapon,
+            magical: false,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_equip_item(&world, "Longsword");
+
+        assert!(resolution.narrative.contains("equips Longsword"));
+        assert!(resolution.narrative.contains("main_hand"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ItemEquipped { slot, .. } if slot == "main_hand")));
+    }
+
+    #[test]
+    fn test_equip_item_armor() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Chain Mail".to_string(),
+            quantity: 1,
+            weight: 55.0,
+            value_gp: 75.0,
+            description: None,
+            item_type: ItemType::Armor,
+            magical: false,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_equip_item(&world, "Chain Mail");
+
+        assert!(resolution.narrative.contains("armor slot"));
+    }
+
+    #[test]
+    fn test_equip_item_shield() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Shield".to_string(),
+            quantity: 1,
+            weight: 6.0,
+            value_gp: 10.0,
+            description: None,
+            item_type: ItemType::Shield,
+            magical: false,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_equip_item(&world, "Shield");
+
+        assert!(resolution.narrative.contains("shield slot"));
+    }
+
+    #[test]
+    fn test_equip_item_non_equippable() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Rope".to_string(),
+            quantity: 1,
+            weight: 10.0,
+            value_gp: 1.0,
+            description: None,
+            item_type: ItemType::Adventuring,
+            magical: false,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_equip_item(&world, "Rope");
+
+        assert!(resolution.narrative.contains("cannot be equipped"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_equip_item_not_in_inventory() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_equip_item(&world, "Longsword");
+
+        assert!(resolution.narrative.contains("doesn't have"));
+        assert!(resolution.narrative.contains("in their inventory"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Unequip Item Tests ==========
+
+    #[test]
+    fn test_unequip_item_armor() {
+        let mut character = create_sample_fighter("Roland");
+        character.equipment.armor = Some(crate::world::ArmorItem::new(
+            "Chain Mail",
+            crate::world::ArmorType::Heavy,
+            16,
+        ));
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_unequip_item(&world, "armor");
+
+        assert!(resolution.narrative.contains("unequips Chain Mail"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ItemUnequipped { slot, .. } if slot == "armor")));
+    }
+
+    #[test]
+    fn test_unequip_item_weapon() {
+        let mut character = create_sample_fighter("Roland");
+        character.equipment.main_hand = Some(crate::world::WeaponItem::new(
+            "Longsword",
+            "1d8",
+            crate::world::WeaponDamageType::Slashing,
+        ));
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_unequip_item(&world, "main_hand");
+
+        assert!(resolution.narrative.contains("unequips Longsword"));
+    }
+
+    #[test]
+    fn test_unequip_item_empty_slot() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_unequip_item(&world, "armor");
+
+        assert!(resolution.narrative.contains("Nothing equipped"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_unequip_item_invalid_slot() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_unequip_item(&world, "invalid_slot");
+
+        assert!(resolution.narrative.contains("Unknown equipment slot"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Use Item Tests ==========
+
+    #[test]
+    fn test_use_item_potion_healing() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Potion of Healing".to_string(),
+            quantity: 1,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_item(&world, "Potion of Healing", None);
+
+        assert!(resolution.narrative.contains("drinks"));
+        assert!(resolution.narrative.contains("heals for"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ItemUsed { .. })));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::HpChanged { .. })));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ItemRemoved { quantity: 1, .. })));
+    }
+
+    #[test]
+    fn test_use_item_scroll() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Scroll of Fireball".to_string(),
+            quantity: 1,
+            weight: 0.0,
+            value_gp: 200.0,
+            description: None,
+            item_type: ItemType::Scroll,
+            magical: true,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_item(&world, "Scroll of Fireball", None);
+
+        assert!(resolution.narrative.contains("reads"));
+        assert!(resolution.narrative.contains("crumbles to dust"));
+        assert!(resolution
+            .effects
+            .iter()
+            .any(|e| matches!(e, Effect::ItemRemoved { quantity: 1, .. })));
+    }
+
+    #[test]
+    fn test_use_item_non_consumable() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Longsword".to_string(),
+            quantity: 1,
+            weight: 3.0,
+            value_gp: 15.0,
+            description: None,
+            item_type: ItemType::Weapon,
+            magical: false,
+        });
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_item(&world, "Longsword", None);
+
+        assert!(resolution.narrative.contains("not a consumable"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_item_not_in_inventory() {
+        let character = create_sample_fighter("Roland");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_item(&world, "Potion of Healing", None);
+
+        assert!(resolution.narrative.contains("doesn't have"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    #[test]
+    fn test_use_item_unconscious() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.items.push(Item {
+            name: "Potion of Healing".to_string(),
+            quantity: 1,
+            weight: 0.5,
+            value_gp: 50.0,
+            description: None,
+            item_type: ItemType::Potion,
+            magical: true,
+        });
+        character.add_condition(Condition::Unconscious, "test");
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_use_item(&world, "Potion of Healing", None);
+
+        assert!(resolution.narrative.contains("unconscious"));
+        assert!(resolution.narrative.contains("cannot use items"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Gold Adjustment Tests ==========
+
+    #[test]
+    fn test_adjust_gold_gain() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.gold = 100;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_adjust_gold(&world, 50, "for quest reward");
+
+        assert!(resolution.narrative.contains("gains 50 gp"));
+        assert!(resolution.narrative.contains("now has 150 gp"));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::GoldChanged {
+                amount: 50,
+                new_total: 150,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn test_adjust_gold_spend() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.gold = 100;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_adjust_gold(&world, -50, "for supplies");
+
+        assert!(resolution.narrative.contains("spends 50 gp"));
+        assert!(resolution.narrative.contains("now has 50 gp"));
+        assert!(resolution.effects.iter().any(|e| matches!(
+            e,
+            Effect::GoldChanged {
+                amount: -50,
+                new_total: 50,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn test_adjust_gold_insufficient() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.gold = 30;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_adjust_gold(&world, -50, "for purchase");
+
+        assert!(resolution.narrative.contains("doesn't have enough gold"));
+        assert!(resolution.effects.is_empty());
+    }
+
+    // ========== Silver Adjustment Tests ==========
+
+    #[test]
+    fn test_adjust_silver_gain() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.silver = 50;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_adjust_silver(&world, 25, "for tips");
+
+        assert!(resolution.narrative.contains("gains 25 sp"));
+        assert!(resolution.narrative.contains("now has 75 sp"));
+    }
+
+    #[test]
+    fn test_adjust_silver_spend() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.silver = 50;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_adjust_silver(&world, -20, "for drinks");
+
+        assert!(resolution.narrative.contains("spends 20 sp"));
+        assert!(resolution.narrative.contains("now has 30 sp"));
+    }
+
+    #[test]
+    fn test_adjust_silver_insufficient() {
+        let mut character = create_sample_fighter("Roland");
+        character.inventory.silver = 10;
+        let world = GameWorld::new("Test", character);
+        let engine = RulesEngine::new();
+
+        let resolution = engine.resolve_adjust_silver(&world, -50, "for purchase");
+
+        assert!(resolution.narrative.contains("doesn't have enough silver"));
+        assert!(resolution.effects.is_empty());
+    }
+}
