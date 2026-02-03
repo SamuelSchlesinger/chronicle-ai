@@ -8,7 +8,8 @@ use claude::Message;
 use serde::{Deserialize, Serialize};
 
 /// Maximum number of recent messages to keep in full detail.
-const MAX_RECENT_MESSAGES: usize = 20;
+/// Increased from 20 to 30 for better narrative continuity in longer sessions.
+const MAX_RECENT_MESSAGES: usize = 30;
 
 /// DM Memory manages context for the AI Dungeon Master.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -288,7 +289,7 @@ mod tests {
     fn test_trim_history() {
         let mut memory = DmMemory::new();
 
-        for i in 0..30 {
+        for i in 0..40 {
             memory.add_player_message(&format!("Message {i}"));
         }
 
@@ -299,12 +300,12 @@ mod tests {
     fn test_trim_removes_oldest_first() {
         let mut memory = DmMemory::new();
 
-        // Add messages numbered 0-24
-        for i in 0..25 {
+        // Add messages numbered 0-34
+        for i in 0..35 {
             memory.add_player_message(&format!("Message {i}"));
         }
 
-        // Should have kept the last 20 (messages 5-24)
+        // Should have kept the last 30 (messages 5-34)
         assert_eq!(memory.message_count(), MAX_RECENT_MESSAGES);
 
         let messages = memory.get_messages();
