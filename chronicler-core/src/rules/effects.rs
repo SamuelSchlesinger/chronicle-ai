@@ -150,7 +150,7 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
                 character.hit_dice.add(hit_die, 1);
 
                 // Update spell slots for spellcasters
-                if class.spellcasting_ability().is_some() {
+                if let Some(spellcasting_ability) = class.spellcasting_ability() {
                     let new_slots = class.spell_slots_at_level(*new_level);
 
                     if let Some(ref mut spellcasting) = character.spellcasting {
@@ -169,7 +169,7 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
                     } else if new_slots.iter().any(|&s| s > 0) {
                         // Class just gained spellcasting (e.g., Paladin/Ranger at level 2)
                         character.spellcasting = Some(SpellcastingData {
-                            ability: class.spellcasting_ability().unwrap(),
+                            ability: spellcasting_ability,
                             spells_known: Vec::new(),
                             spells_prepared: Vec::new(),
                             cantrips_known: Vec::new(),
@@ -812,5 +812,373 @@ pub fn apply_effect(world: &mut GameWorld, effect: &Effect) {
         | Effect::EventTriggered { .. } => {
             // No GameWorld state changes needed - StoryMemory handles these
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::world::{
+        create_sample_barbarian, create_sample_bard, create_sample_cleric, create_sample_fighter,
+        create_sample_monk, create_sample_paladin, create_sample_sorcerer, GameWorld,
+    };
+
+    // Helper function to create a level up effect
+    fn level_up_effect(new_level: u8) -> Effect {
+        Effect::LevelUp { new_level }
+    }
+
+    // ========== Fighter Level Up Tests ==========
+
+    #[test]
+    fn test_fighter_level_up_hp_increases() {
+        let character = create_sample_fighter("Roland");
+        let mut world = GameWorld::new("Test", character);
+        let old_max_hp = world.player_character.hit_points.maximum;
+        let old_current_hp = world.player_character.hit_points.current;
+
+        // Level up from 3 to 4
+        apply_effect(&mut world, &level_up_effect(4));
+
+        // Fighter uses d10 hit die, average is 6. CON mod is +2 (14 CON)
+        // Expected gain: 6 + 2 = 8 HP
+        assert_eq!(world.player_character.level, 4);
+        assert_eq!(
+            world.player_character.hit_points.maximum,
+            old_max_hp + 8,
+            "Max HP should increase by hit die average + CON mod"
+        );
+        assert_eq!(
+            world.player_character.hit_points.current,
+            old_current_hp + 8,
+            "Current HP should also increase"
+        );
+    }
+
+    #[test]
+    fn test_fighter_level_up_hit_dice_increases() {
+        let character = create_sample_fighter("Roland");
+        let mut world = GameWorld::new("Test", character);
+
+        // d10 count at level 3
+        let old_d10_count = *world
+            .player_character
+            .hit_dice
+            .total
+            .get(&crate::dice::DieType::D10)
+            .unwrap_or(&0);
+
+        apply_effect(&mut world, &level_up_effect(4));
+
+        let new_d10_count = *world
+            .player_character
+            .hit_dice
+            .total
+            .get(&crate::dice::DieType::D10)
+            .unwrap_or(&0);
+        assert_eq!(
+            new_d10_count,
+            old_d10_count + 1,
+            "Should gain one d10 hit die"
+        );
+    }
+
+    #[test]
+    fn test_fighter_level_up_class_level_increases() {
+        let character = create_sample_fighter("Roland");
+        let mut world = GameWorld::new("Test", character);
+
+        apply_effect(&mut world, &level_up_effect(5));
+
+        assert_eq!(world.player_character.level, 5);
+        assert_eq!(world.player_character.classes[0].level, 5);
+    }
+
+    // ========== Barbarian Level Up Tests ==========
+
+    #[test]
+    fn test_barbarian_level_up_hp_with_d12() {
+        let character = create_sample_barbarian("Conan");
+        let mut world = GameWorld::new("Test", character);
+        let old_max_hp = world.player_character.hit_points.maximum;
+
+        // Level up from 3 to 4
+        apply_effect(&mut world, &level_up_effect(4));
+
+        // Barbarian uses d12 hit die, average is 7. CON mod is +3 (16 CON)
+        // Expected gain: 7 + 3 = 10 HP
+        assert_eq!(
+            world.player_character.hit_points.maximum,
+            old_max_hp + 10,
+            "Barbarian should gain d12 avg (7) + CON mod (3) = 10 HP"
+        );
+    }
+
+    #[test]
+    fn test_barbarian_rage_uses_at_level_3() {
+        let character = create_sample_barbarian("Conan");
+        let world = GameWorld::new("Test", character);
+
+        // At level 3, should have 3 rage uses
+        let rage_feature = world
+            .player_character
+            .features
+            .iter()
+            .find(|f| f.name == "Rage")
+            .unwrap();
+        assert_eq!(rage_feature.uses.as_ref().unwrap().maximum, 3);
+    }
+
+    #[test]
+    fn test_barbarian_rage_uses_increases_at_level_6() {
+        let character = create_sample_barbarian("Conan");
+        let mut world = GameWorld::new("Test", character);
+
+        // Level from 3 to 6
+        for level in 4..=6 {
+            apply_effect(&mut world, &level_up_effect(level));
+        }
+
+        // At level 6, should have 4 rage uses
+        let rage_feature = world
+            .player_character
+            .features
+            .iter()
+            .find(|f| f.name == "Rage")
+            .unwrap();
+        assert_eq!(
+            rage_feature.uses.as_ref().unwrap().maximum,
+            4,
+            "Should have 4 rage uses at level 6+"
+        );
+    }
+
+    #[test]
+    fn test_barbarian_rage_damage_bonus_at_level_9() {
+        let character = create_sample_barbarian("Conan");
+        let mut world = GameWorld::new("Test", character);
+
+        // Level from 3 to 9
+        for level in 4..=9 {
+            apply_effect(&mut world, &level_up_effect(level));
+        }
+
+        assert_eq!(
+            world.player_character.class_resources.rage_damage_bonus, 3,
+            "Rage damage bonus should be +3 at level 9+"
+        );
+    }
+
+    // ========== Monk Level Up Tests ==========
+
+    #[test]
+    fn test_monk_ki_points_increase_with_level() {
+        let character = create_sample_monk("Lee");
+        let mut world = GameWorld::new("Test", character);
+
+        // At level 3, should have 3 ki points
+        assert_eq!(world.player_character.class_resources.ki_points, 3);
+        assert_eq!(world.player_character.class_resources.max_ki_points, 3);
+
+        // Level up to 5
+        apply_effect(&mut world, &level_up_effect(4));
+        apply_effect(&mut world, &level_up_effect(5));
+
+        assert_eq!(
+            world.player_character.class_resources.max_ki_points, 5,
+            "Ki points should equal monk level"
+        );
+        assert_eq!(world.player_character.class_resources.ki_points, 5);
+    }
+
+    // ========== Paladin Level Up Tests ==========
+
+    #[test]
+    fn test_paladin_lay_on_hands_increases_with_level() {
+        let character = create_sample_paladin("Arthur");
+        let mut world = GameWorld::new("Test", character);
+
+        // At level 3, pool should be 15 (5 × 3)
+        assert_eq!(world.player_character.class_resources.lay_on_hands_max, 15);
+
+        // Level up to 5
+        apply_effect(&mut world, &level_up_effect(4));
+        apply_effect(&mut world, &level_up_effect(5));
+
+        assert_eq!(
+            world.player_character.class_resources.lay_on_hands_max, 25,
+            "Lay on Hands pool should be 5 × paladin level = 25"
+        );
+        // Pool should be restored to full on level up
+        assert_eq!(world.player_character.class_resources.lay_on_hands_pool, 25);
+    }
+
+    #[test]
+    fn test_paladin_spell_slots_increase() {
+        let character = create_sample_paladin("Arthur");
+        let mut world = GameWorld::new("Test", character);
+
+        // At level 3, should have 3 first-level slots
+        let slots_before = world
+            .player_character
+            .spellcasting
+            .as_ref()
+            .unwrap()
+            .spell_slots
+            .slots[0]
+            .total;
+        assert_eq!(slots_before, 3);
+
+        // Level up to 5
+        apply_effect(&mut world, &level_up_effect(4));
+        apply_effect(&mut world, &level_up_effect(5));
+
+        let spellcasting = world.player_character.spellcasting.as_ref().unwrap();
+        assert_eq!(
+            spellcasting.spell_slots.slots[0].total, 4,
+            "Should have 4 first-level slots at level 5"
+        );
+        assert_eq!(
+            spellcasting.spell_slots.slots[1].total, 2,
+            "Should have 2 second-level slots at level 5"
+        );
+    }
+
+    // ========== Sorcerer Level Up Tests ==========
+
+    #[test]
+    fn test_sorcerer_sorcery_points_increase() {
+        let character = create_sample_sorcerer("Vex");
+        let mut world = GameWorld::new("Test", character);
+
+        // At level 3, should have 3 sorcery points
+        assert_eq!(world.player_character.class_resources.sorcery_points, 3);
+        assert_eq!(world.player_character.class_resources.max_sorcery_points, 3);
+
+        // Level up to 5
+        apply_effect(&mut world, &level_up_effect(4));
+        apply_effect(&mut world, &level_up_effect(5));
+
+        assert_eq!(
+            world.player_character.class_resources.max_sorcery_points, 5,
+            "Sorcery points max should equal sorcerer level"
+        );
+        // Should gain the new points
+        assert_eq!(world.player_character.class_resources.sorcery_points, 5);
+    }
+
+    #[test]
+    fn test_sorcerer_spell_slots_increase() {
+        let character = create_sample_sorcerer("Vex");
+        let mut world = GameWorld::new("Test", character);
+
+        // Level up to 5
+        apply_effect(&mut world, &level_up_effect(4));
+        apply_effect(&mut world, &level_up_effect(5));
+
+        let spellcasting = world.player_character.spellcasting.as_ref().unwrap();
+        // Full caster at level 5: 4/3/2 slots
+        assert_eq!(spellcasting.spell_slots.slots[0].total, 4); // 1st level
+        assert_eq!(spellcasting.spell_slots.slots[1].total, 3); // 2nd level
+        assert_eq!(spellcasting.spell_slots.slots[2].total, 2); // 3rd level
+    }
+
+    // ========== Full Caster Spell Slot Progression Tests ==========
+
+    #[test]
+    fn test_bard_spell_slots_at_level_5() {
+        let character = create_sample_bard("Dandelion");
+        let mut world = GameWorld::new("Test", character);
+
+        // Level from 3 to 5
+        apply_effect(&mut world, &level_up_effect(4));
+        apply_effect(&mut world, &level_up_effect(5));
+
+        let spellcasting = world.player_character.spellcasting.as_ref().unwrap();
+        // Full caster at level 5: 4/3/2 slots
+        assert_eq!(spellcasting.spell_slots.slots[0].total, 4);
+        assert_eq!(spellcasting.spell_slots.slots[1].total, 3);
+        assert_eq!(spellcasting.spell_slots.slots[2].total, 2);
+    }
+
+    #[test]
+    fn test_cleric_spell_slots_progression() {
+        let character = create_sample_cleric("Brother Marcus");
+        let mut world = GameWorld::new("Test", character);
+
+        // Level from 3 to 9 (checking full caster progression)
+        for level in 4..=9 {
+            apply_effect(&mut world, &level_up_effect(level));
+        }
+
+        let spellcasting = world.player_character.spellcasting.as_ref().unwrap();
+        // Full caster at level 9: 4/3/3/3/1 slots
+        assert_eq!(spellcasting.spell_slots.slots[0].total, 4); // 1st level
+        assert_eq!(spellcasting.spell_slots.slots[1].total, 3); // 2nd level
+        assert_eq!(spellcasting.spell_slots.slots[2].total, 3); // 3rd level
+        assert_eq!(spellcasting.spell_slots.slots[3].total, 3); // 4th level
+        assert_eq!(spellcasting.spell_slots.slots[4].total, 1); // 5th level
+    }
+
+    // ========== HP Minimum Tests ==========
+
+    #[test]
+    fn test_level_up_hp_minimum_1() {
+        // Create a character with negative CON modifier
+        let mut character = create_sample_fighter("Weak Fighter");
+        character.ability_scores.constitution = 6; // -2 modifier
+        let mut world = GameWorld::new("Test", character);
+        let old_max_hp = world.player_character.hit_points.maximum;
+
+        apply_effect(&mut world, &level_up_effect(4));
+
+        // Even with -2 CON mod, should gain at least 1 HP
+        // d10 average (6) - 2 = 4, but even if average was 1 and mod was -5, would still be 1
+        assert!(
+            world.player_character.hit_points.maximum > old_max_hp,
+            "Should always gain at least 1 HP"
+        );
+    }
+
+    // ========== Multiple Level Up Tests ==========
+
+    #[test]
+    fn test_multiple_level_ups() {
+        let character = create_sample_fighter("Roland");
+        let mut world = GameWorld::new("Test", character);
+
+        // Level from 3 to 10
+        for level in 4..=10 {
+            apply_effect(&mut world, &level_up_effect(level));
+        }
+
+        assert_eq!(world.player_character.level, 10);
+        assert_eq!(world.player_character.classes[0].level, 10);
+        // 7 level ups × (6 + 2) = 56 HP gained
+        // Starting at level 3 with 28 HP, should be 28 + 56 = 84 HP
+        // (assuming average HP per level)
+    }
+
+    // ========== Proficiency Bonus Tests ==========
+    // (These test the proficiency_bonus method but verify it works correctly at various levels)
+
+    #[test]
+    fn test_proficiency_bonus_at_various_levels() {
+        let character = create_sample_fighter("Roland");
+        let mut world = GameWorld::new("Test", character);
+
+        // Level 3: +2
+        assert_eq!(world.player_character.proficiency_bonus(), 2);
+
+        // Level up to 5: +3
+        apply_effect(&mut world, &level_up_effect(4));
+        apply_effect(&mut world, &level_up_effect(5));
+        assert_eq!(world.player_character.proficiency_bonus(), 3);
+
+        // Level up to 9: +4
+        for level in 6..=9 {
+            apply_effect(&mut world, &level_up_effect(level));
+        }
+        assert_eq!(world.player_character.proficiency_bonus(), 4);
     }
 }
